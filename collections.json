@@ -1,0 +1,221 @@
+/* 1. users */
+{
+    "_id": {
+        "$oid": "66bb8a1234567890abcdef12"
+    }, // ObjectId tự động của MongoDB
+    "userId": "USR001", // Mã nội bộ
+    "username": "nguyenvana",
+    "passwordHash": "$2b$10$abcd...", // hash bcrypt
+    "role": "student", // student / librarian / admin
+    "status": "active", // active / banned / suspended
+    "name": "Nguyen Van A",
+    "email": "nguyenvana@university.edu",
+    "phone": "0123456789",
+    "department": "Công nghệ thông tin", // Chỉ khi role = student
+    "year": 3, // Năm học
+    "borrowLimit": 5, // Số sách tối đa được mượn
+    "refreshToken": null, // Token làm mới
+    "createdAt": {
+        "$date": "2025-08-13T00:00:00Z"
+    },
+    "lastLogin": {
+        "$date": "2025-08-13T14:00:00Z"
+    }
+}
+
+/* 2. books */
+{
+    "_id": {
+        "$oid": "66bb8f1234567890abcdef34"
+    }, // ObjectId tự động của MongoDB
+    "bookId": "BK001", // Mã sách nội bộ
+    "title": "Lập Trình Python Cơ Bản", // Tên sách
+    "author": "Nguyễn Văn A", // Tác giả
+    "publisher": "NXB Giáo Dục", // Nhà xuất bản
+    "year": 2023, // Năm xuất bản
+    "category": "Lập trình", // Thể loại
+    "language": "Tiếng Việt", // Ngôn ngữ
+    "isbn": "978-604-123-456-7", // Mã ISBN, hoặc mã sku của sách
+    "quantity": 5, // Số lượng sách hiện có
+    "available": 3, // Số lượng sách còn cho mượn
+    "location": "Kệ A3 - Tầng 2", // Vị trí sách trong thư viện
+    "coverImage": "https://example.com/images/book1.jpg", // Link ảnh bìa
+    "description": "Giới thiệu chi tiết về lập trình Python từ cơ bản đến nâng cao.", // Mô tả
+    "createdAt": {
+        "$date": "2025-08-13T04:00:00Z"
+    }, // Ngày tạo
+    "updatedAt": {
+        "$date": "2025-08-13T04:00:00Z"
+    } // Ngày cập nhật
+}
+
+/* 3. authors */
+{
+    "_id": {
+        "$oid": "66bc00000000000000000001"
+    }, // ObjectId tự động của MongoDB
+    "name": "Nguyễn Nhật Ánh", // Tên tác giả
+    "biography": "Nhà văn nổi tiếng Việt Nam, chuyên viết truyện thiếu nhi.", // Tiểu sử
+    "birthDate": {
+        "$date": "1955-05-07T00:00:00Z"
+    }, // Ngày sinh
+    "nationality": "Việt Nam", // Quốc tịch
+    "createdAt": {
+        "$date": "2025-08-13T08:00:00Z"
+    } // Ngày tạo
+}
+
+/* 4. borrows */
+{
+    "_id": {
+        "$oid": "66bb9a1234567890abcdef34"
+    }, // ObjectId tự động của MongoDB
+    "borrowId": "BOR0001", // Mã mượn, tự sinh (giúp dễ nhìn, tra cứu)
+    "userId": "USR001", // Mã sinh viên (tham chiếu tới users.userId)
+    "bookId": "BOOK0005", // Mã sách (tham chiếu tới books.bookId)
+    "borrowDate": {
+        "$date": "2025-08-13T09:30:00Z"
+    }, // Ngày mượn
+    "dueDate": {
+        "$date": "2025-08-20T09:30:00Z"
+    }, // Ngày phải trả
+    "returnDate": null, // Ngày trả (null nếu chưa trả)
+    "status": "borrowing", // borrowing | returned | overdue
+    "fineAmount": 0, // Số tiền phạt (nếu có)
+    "note": "", // Ghi chú thêm (nếu cần)
+    "createdAt": {
+        "$date": "2025-08-13T09:30:00Z"
+    }, // Ngày tạo bản ghi
+    "updatedAt": {
+        "$date": "2025-08-13T09:30:00Z"
+    } // Ngày cập nhật bản ghi
+}
+
+/* 5. categories */
+{
+    "_id": {
+        "$oid": "66bb8b1234567890abcdef34"
+    }, // ObjectId tự động của MongoDB
+    "categoryId": "CAT001", // Mã định danh của thể loại (Category ID) — tự sinh theo quy tắc riêng của hệ thống
+    "name": "Khoa học máy tính", // Tên thể loại sách (Category Name) — ví dụ: Văn học, Toán học, Khoa học - Công nghệ, v.v.
+    "description": "Sách về lập trình, trí tuệ nhân tạo, mạng máy tính và các lĩnh vực liên quan", // Mô tả chi tiết về thể loại
+    "createdAt": {
+        "$date": "2025-08-13T03:00:00Z"
+    }, // Ngày giờ tạo category — lưu theo định dạng ISODate
+    "updatedAt": {
+        "$date": "2025-08-13T03:00:00Z"
+    } // Ngày giờ cập nhật gần nhất của category — dùng để quản lý lịch sử thay đổi
+}
+
+/* 6. reviews */
+{
+    "_id": {
+        "$oid": "66bb9d1234567890abcdef34"
+    }, // ObjectId tự động của MongoDB
+    "reviewId": "REV001", // Mã đánh giá duy nhất
+    "bookId": "BOOK001", // Mã sách được đánh giá
+    "userId": "USR001", // Mã người dùng viết đánh giá
+    "rating": 4.5, // Điểm đánh giá (thang 1 - 5, có thể dạng float)
+    "comment": "Cuốn sách rất hay, nội dung hấp dẫn!", // Nội dung bình luận
+    "createdAt": {
+        "$date": "2025-08-13T04:00:00Z"
+    }, // Thời gian tạo đánh giá
+    "updatedAt": {
+        "$date": "2025-08-13T04:30:00Z"
+    } // Thời gian chỉnh sửa (nếu có)
+}
+
+/* 7. transactions */
+{
+    "_id": {
+        "$oid": "66bb9c1234567890abcdef34"
+    }, // ObjectId tự động của MongoDB
+    "transactionId": "TXN001", // Mã giao dịch (định dạng TXNxxx, duy nhất, dùng để tra cứu nhanh)
+    "userId": "USR001", // Mã người dùng thực hiện giao dịch (liên kết với Users.userId)
+    "borrowId": "BRW001", // Mã mượn sách liên quan giao dịch (nếu là thanh toán phí mượn trễ)
+    "amount": 50000, // Số tiền giao dịch (đơn vị VNĐ, số nguyên)
+    "type": "payment", // Loại giao dịch:
+    //   - "payment" : Thanh toán phí mượn sách trễ
+    //   - "deposit" : Nạp tiền vào tài khoản thư viện
+    //   - "refund"  : Hoàn trả tiền cọc
+    "method": "cash", // Phương thức thanh toán:
+    //   - "cash" : Tiền mặt
+    //   - "bank_transfer" : Chuyển khoản
+    //   - "online_payment" : Thanh toán qua ví điện tử/thẻ
+    "status": "completed", // Trạng thái giao dịch:
+    //   - "completed" : Hoàn tất
+    //   - "pending"   : Đang xử lý
+    //   - "failed"    : Thất bại
+    "transactionDate": {
+        "$date": "2025-08-13T09:00:00Z"
+    }, // Ngày giờ thực hiện giao dịch
+    "note": "Thanh toán phí mượn sách trễ 3 ngày", // Ghi chú bổ sung về giao dịch
+    "createdAt": {
+        "$date": "2025-08-13T09:00:00Z"
+    }, // Ngày giờ tạo bản ghi
+    "updatedAt": {
+        "$date": "2025-08-13T09:00:00Z"
+    } // Ngày giờ cập nhật bản ghi
+}
+
+/* 8. reservations */
+{
+    "_id": {
+        "$oid": "66bb8a1234567890abcd1234"
+    }, // ObjectId tự động của MongoDB
+    "reservationId": "RES001", // Mã đặt chỗ duy nhất (Reservation ID)
+    "userId": "USR001", // Mã người dùng đặt sách (liên kết tới collection users)
+    "bookId": "BOOK001", // Mã sách được đặt trước (liên kết tới collection books)
+    "reservationDate": {
+        "$date": "2025-08-13T04:00:00Z"
+    }, // Ngày giờ thực hiện đặt chỗ
+    "status": "pending", // Trạng thái đặt chỗ: pending (đang chờ), confirmed (xác nhận), cancelled (hủy)
+    "expiryDate": {
+        "$date": "2025-08-20T04:00:00Z"
+    }, // Ngày hết hạn giữ chỗ (sau thời gian này nếu không mượn thì hủy)
+    "notes": "Người dùng muốn mượn bản in mới", // Ghi chú thêm cho yêu cầu đặt trước (nếu có)
+    "createdAt": {
+        "$date": "2025-08-13T04:00:00Z"
+    }, // Ngày tạo bản ghi đặt chỗ
+    "updatedAt": {
+        "$date": "2025-08-13T04:00:00Z"
+    } // Ngày cập nhật gần nhất
+}
+
+/* 9. fines */
+{
+    "_id": {
+        "$oid": "66bbfe7890abcdef12345678"
+    }, // ObjectId tự động của MongoDB
+    "userId": "USR001", // Mã sinh viên (tham chiếu tới users.userId)
+    "borrowId": "BOR001", // Mã mượn (tham chiếu tới borrows.borrowId)
+    "amount": 50000, // Số tiền phạt (VNĐ)
+    "reason": "Trả sách trễ 5 ngày", // Lý do phạt (VD: trễ hạn, mất sách, hư hỏng sách)
+    "status": "unpaid", // Trạng thái thanh toán: unpaid, paid, waived
+    "issuedDate": {
+        "$date": "2024-07-15T09:00:00Z"
+    }, // Ngày phát hành khoản phạt
+    "paidDate": null, // Ngày thanh toán (nếu đã thanh toán thì lưu ngày)
+    "notes": "Người dùng xin gia hạn nhưng không được chấp nhận" // Ghi chú bổ sung
+}
+
+/* 10. notifications */
+{
+    "_id": {
+        "$oid": "66bbf8f1234567890abcdef78"
+    }, // ObjectId tự động của MongoDB
+    // Nếu là thông báo chung thì bỏ qua userId hoặc để null
+    "userId": "USR001", // ID của người nhận (nếu null → là thông báo chung cho tất cả)
+    "title": "Nhắc trả sách", // Tiêu đề thông báo
+    "message": "Bạn còn 2 ngày để trả sách 'Lập Trình C++ Nâng Cao'.", // Nội dung thông báo
+    "type": "reminder", // Loại thông báo: "reminder" (nhắc nhở), "alert" (cảnh báo), "info" (thông tin)
+    "isRead": false, // Trạng thái đã đọc hay chưa
+    "createdAt": {
+        "$date": "2025-08-13T08:00:00Z"
+    }, // Thời điểm tạo thông báo
+    // Thông tin liên kết với thực thể liên quan (để khi bấm vào thông báo, app mở đúng trang)
+    "relatedEntity": {
+        "entityType": "borrow", // Kiểu thực thể liên quan: borrow, book, order, user...
+        "entityId": "BRW001" // ID của thực thể liên quan
+    }
+}
