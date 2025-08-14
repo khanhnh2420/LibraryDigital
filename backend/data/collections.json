@@ -1,8 +1,5 @@
 /* 1. users */
 {
-    "_id": {
-        "$oid": "66bb8a1234567890abcdef12"
-    }, // ObjectId tự động của MongoDB
     "userId": "USR001", // Mã nội bộ
     "username": "nguyenvana",
     "passwordHash": "$2b$10$abcd...", // hash bcrypt
@@ -25,9 +22,6 @@
 
 /* 2. books */
 {
-    "_id": {
-        "$oid": "66bb8f1234567890abcdef34"
-    }, // ObjectId tự động của MongoDB
     "bookId": "BK001", // Mã sách nội bộ
     "title": "Lập Trình Python Cơ Bản", // Tên sách
     "author": "Nguyễn Văn A", // Tác giả
@@ -51,9 +45,6 @@
 
 /* 3. authors */
 {
-    "_id": {
-        "$oid": "66bc00000000000000000001"
-    }, // ObjectId tự động của MongoDB
     "name": "Nguyễn Nhật Ánh", // Tên tác giả
     "biography": "Nhà văn nổi tiếng Việt Nam, chuyên viết truyện thiếu nhi.", // Tiểu sử
     "birthDate": {
@@ -67,9 +58,6 @@
 
 /* 4. borrows */
 {
-    "_id": {
-        "$oid": "66bb9a1234567890abcdef34"
-    }, // ObjectId tự động của MongoDB
     "borrowId": "BOR0001", // Mã mượn, tự sinh (giúp dễ nhìn, tra cứu)
     "userId": "USR001", // Mã sinh viên (tham chiếu tới users.userId)
     "bookId": "BOOK0005", // Mã sách (tham chiếu tới books.bookId)
@@ -93,9 +81,6 @@
 
 /* 5. categories */
 {
-    "_id": {
-        "$oid": "66bb8b1234567890abcdef34"
-    }, // ObjectId tự động của MongoDB
     "categoryId": "CAT001", // Mã định danh của thể loại (Category ID) — tự sinh theo quy tắc riêng của hệ thống
     "name": "Khoa học máy tính", // Tên thể loại sách (Category Name) — ví dụ: Văn học, Toán học, Khoa học - Công nghệ, v.v.
     "description": "Sách về lập trình, trí tuệ nhân tạo, mạng máy tính và các lĩnh vực liên quan", // Mô tả chi tiết về thể loại
@@ -109,9 +94,6 @@
 
 /* 6. reviews */
 {
-    "_id": {
-        "$oid": "66bb9d1234567890abcdef34"
-    }, // ObjectId tự động của MongoDB
     "reviewId": "REV001", // Mã đánh giá duy nhất
     "bookId": "BOOK001", // Mã sách được đánh giá
     "userId": "USR001", // Mã người dùng viết đánh giá
@@ -127,9 +109,6 @@
 
 /* 7. transactions */
 {
-    "_id": {
-        "$oid": "66bb9c1234567890abcdef34"
-    }, // ObjectId tự động của MongoDB
     "transactionId": "TXN001", // Mã giao dịch (định dạng TXNxxx, duy nhất, dùng để tra cứu nhanh)
     "userId": "USR001", // Mã người dùng thực hiện giao dịch (liên kết với Users.userId)
     "borrowId": "BRW001", // Mã mượn sách liên quan giao dịch (nếu là thanh toán phí mượn trễ)
@@ -160,9 +139,6 @@
 
 /* 8. reservations */
 {
-    "_id": {
-        "$oid": "66bb8a1234567890abcd1234"
-    }, // ObjectId tự động của MongoDB
     "reservationId": "RES001", // Mã đặt chỗ duy nhất (Reservation ID)
     "userId": "USR001", // Mã người dùng đặt sách (liên kết tới collection users)
     "bookId": "BOOK001", // Mã sách được đặt trước (liên kết tới collection books)
@@ -184,9 +160,6 @@
 
 /* 9. fines */
 {
-    "_id": {
-        "$oid": "66bbfe7890abcdef12345678"
-    }, // ObjectId tự động của MongoDB
     "userId": "USR001", // Mã sinh viên (tham chiếu tới users.userId)
     "borrowId": "BOR001", // Mã mượn (tham chiếu tới borrows.borrowId)
     "amount": 50000, // Số tiền phạt (VNĐ)
@@ -201,9 +174,6 @@
 
 /* 10. notifications */
 {
-    "_id": {
-        "$oid": "66bbf8f1234567890abcdef78"
-    }, // ObjectId tự động của MongoDB
     // Nếu là thông báo chung thì bỏ qua userId hoặc để null
     "userId": "USR001", // ID của người nhận (nếu null → là thông báo chung cho tất cả)
     "title": "Nhắc trả sách", // Tiêu đề thông báo
