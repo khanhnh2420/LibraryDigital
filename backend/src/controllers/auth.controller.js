@@ -1,45 +1,86 @@
-import bcrypt from "bcryptjs";
+// controllers/auth.controller.js
 import { UserModel } from "../models/user.model.js";
+import { comparePasswordWithSignature } from "../utils/hash.js";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
 
-function generateUserId(role, username) {
-    const prefix = role === "student" ? "SV" : role === "librarian" ? "GV" : "AD";
-    return prefix + username;
-}
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev_refresh_secret";
 
-export async function registerUser(req, res) {
+export const AuthController = {
+  registerUser: async (req, res) => {
     try {
-        const { username, email, password, role } = req.body;
+      const { username, email, password, role = "student" } = req.body;
 
-        // 1. Kiểm tra email đã tồn tại chưa
-        const existingUser = await UserModel.findByEmail(email);
-        if (existingUser) {
-            return res.status(400).json({ message: "Email đã được sử dụng" });
-        }
+      if (!username || !email || !password) {
+        return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
+      }
 
-        // 2. Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+      const [existEmail, existUsername] = await Promise.all([
+        UserModel.findByEmail(email),
+        UserModel.findByUsername(username)
+      ]);
+      if (existEmail || existUsername) {
+        return res.status(400).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
+      }
 
-        // 3. Lưu user mới
-        // Clone template và gán dữ liệu
-        const newUser = {
-            ...UserModel.getTemplate(role),
-            userId: generateUserId(role, username),
-            username,
-            passwordHash: hashedPassword,
-            email,
-        };
+      // Model sẽ tự hash password và sinh userId
+      const result = await UserModel.createUser({
+        username,
+        email,
+        password,
+        role
+      });
 
-        const result = await UserModel.create(newUser);
-
-        // 4. Trả response
-        res.status(201).json({
-            message: "Tạo tài khoản thành công",
-            newUser
-        });
-
-    } catch (error) {
-        console.error("❌ Lỗi khi tạo tài khoản:", error);
-        res.status(500).json({ message: "Lỗi server" });
+      return res.status(201).json({
+        message: "Tạo tài khoản thành công",
+        user: { ...result.user, _id: result.insertedId }
+      });
+    } catch (err) {
+      console.error("❌ Lỗi khi tạo tài khoản:", err);
+      return res.status(500).json({ message: "Lỗi server" });
     }
-}
+  },
+
+  login: async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ message: "Vui lòng nhập đủ username và password" });
+      }
+
+      const user = await UserModel.findByUsername(username);
+      if (!user) {
+        return res.status(400).json({ message: "Sai username hoặc password" });
+      }
+
+      const isMatch = await comparePasswordWithSignature(password, user.passwordHash);
+      if (!isMatch) {
+        return res.status(400).json({ message: "Sai username hoặc password" });
+      }
+
+      const payload = { userId: user.userId, role: user.role };
+      const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
+      const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+
+      await UserModel.saveRefreshToken(user.userId, refreshToken);
+
+      return res.status(200).json({
+        message: "Đăng nhập thành công",
+        accessToken,
+        refreshToken,
+        user: {
+          userId: user.userId,
+          username: user.username,
+          role: user.role,
+          name: user.name
+        }
+      });
+    } catch (err) {
+      console.error("❌ Lỗi đăng nhập:", err);
+      return res.status(500).json({ message: "Lỗi server" });
+    }
+  }
+};
