@@ -4,6 +4,7 @@ import morgan from "morgan";
 
 
 import authRoutes from "./routes/auth.routes.js";
+import bookRoutes from "./routes/book.routes.js";
 // import errorMiddleware from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(morgan("dev")); // Log request trong dev
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/books", bookRoutes);
 
 // Middleware xử lý lỗi
 // app.use(errorMiddleware);
