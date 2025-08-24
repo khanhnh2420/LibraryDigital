@@ -17,10 +17,10 @@ router.get("/isbn/:isbn", BookController.getBookByISBN);
 router.get("/category/:category", BookController.getBooksByCategory);
 
 // Lấy Book theo Author
-router.get("/author", BookController.getBooksByAuthor);
+router.get("/:author", BookController.getBooksByAuthor);
 
-// Lấy Book theo ID (đặt cuối cùng vì :bookId có thể match tất cả)
-router.get("/:bookId", BookController.getById);
+// Lấy Book theo ID 
+router.get("/:bookId", BookController.getBookByBookId);
 
 router.post("/", BookController.create);
 router.put("/:bookId", BookController.update);

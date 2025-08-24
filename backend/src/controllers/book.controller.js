@@ -84,6 +84,23 @@ export const BookController = {
     },
 
     // GET /api/books/isbn/:isbn
+    getBookByBookId: async (req, res) => {
+        try {
+            const { bookId } = req.params;
+            const book = await BookModel.findByBookId(bookId);
+
+            if (!book) {
+                return res.status(404).json({ message: "Không tìm thấy sách với bookId này" });
+            }
+
+            return res.status(200).json(book);
+        } catch (err) {
+            console.error("❌ Lỗi getBookByBookId:", err);
+            return res.status(500).json({ message: "Lỗi server" });
+        }
+    },
+
+    // GET /api/books/isbn/:isbn
     getBookByISBN: async (req, res) => {
         try {
             const { isbn } = req.params;

@@ -30,7 +30,6 @@ export const BookModel = {
         return result;
     },
 
-
     async getAllBooks() {
         const db = await getDB();
         return await db.collection(collectionName).aggregate([
@@ -40,11 +39,20 @@ export const BookModel = {
         ]).toArray();
     },
 
+    async findByBookId(bookId) {
+        const db = await getDB();
+        const result = await db.collection(collectionName).aggregate([
+            { $match: { bookId: bookId } },
+            { $project: { _id: 0, isbn: 0, createdAt: 0, updatedAt: 0 } }
+        ]).toArray();
+        return result[0]; // vì bookId chỉ có 1 cuốn
+    },
+
     async findByISBN(isbn) {
         const db = await getDB();
         const result = await db.collection(collectionName).aggregate([
             { $match: { isbn: isbn } },
-            { $project: { _id: 0, title: 1, author: 1, isbn: 1, category: 1, year: 1 } }
+            { $project: { _id: 0, isbn: 0, createdAt: 0, updatedAt: 0 } }
         ]).toArray();
         return result[0]; // vì ISBN chỉ có 1 cuốn
     },
