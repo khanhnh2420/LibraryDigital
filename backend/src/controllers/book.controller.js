@@ -14,13 +14,13 @@ export const BookController = {
         }
     },
 
-    // Lấy toàn bộ sách
-    async getAllBooks(req, res) {
+    // Lấy tất cả sách
+    getAllBooks: async (req, res) => {
         try {
-            const books = await BookModel.findAll();
+            const books = await BookModel.getAllBooks(); // gọi đúng hàm trong model
             return res.status(200).json(books);
         } catch (err) {
-            console.error("❌ Lỗi getAll Books:", err);
+            console.error("❌ Lỗi getAllBooks:", err);
             return res.status(500).json({ message: "Lỗi server" });
         }
     },
@@ -116,7 +116,12 @@ export const BookController = {
     // GET /api/books/author/:author
     getBooksByAuthor: async (req, res) => {
         try {
-            const { author } = req.params;
+            const { author } = req.query;
+
+            if (!author) {
+                return res.status(400).json({ message: "Thiếu tên tác giả" });
+            }
+
             const books = await BookModel.findByAuthor(author);
 
             return res.status(200).json(books);
@@ -124,5 +129,6 @@ export const BookController = {
             console.error("❌ Lỗi getBooksByAuthor:", err);
             return res.status(500).json({ message: "Lỗi server" });
         }
-    },
+    }
+
 };

@@ -15,16 +15,6 @@ export const BookModel = {
         return result;
     },
 
-    async findAll() {
-        const db = getDB();
-        return await db.collection(collectionName).find().toArray();
-    },
-
-    async findById(bookId) {
-        const db = getDB();
-        return await db.collection(collectionName).findOne({ bookId });
-    },
-
     async update(bookId, updateData) {
         const db = getDB();
         const result = await db.collection(collectionName).updateOne(
@@ -38,6 +28,16 @@ export const BookModel = {
         const db = getDB();
         const result = await db.collection(collectionName).deleteOne({ bookId });
         return result;
+    },
+
+
+    async getAllBooks() {
+        const db = await getDB();
+        return await db.collection(collectionName).aggregate([
+            { $match: { available: { $gt: 0 } } }, // lọc avalb khác 0
+            { $project: { _id: 0, bookId: 1, title: 1, author: 1, isbn: 1, category: 1, year: 1, available: 1 } },
+            { $sort: { title: 1 } } // sắp xếp A-Z
+        ]).toArray();
     },
 
     async findByISBN(isbn) {
@@ -61,20 +61,10 @@ export const BookModel = {
     async findByAuthor(author) {
         const db = await getDB();
         return await db.collection(collectionName).aggregate([
-            { $match: { author: author } },
-            // { $project: { _id: 0, title: 1, author: 1, category: 1, year: 1 } },
-            { $sort: { year: -1 } } // sắp xếp theo năm giảm dần
+            { $match: { author: { $regex: author, $options: "i" } } }, // "i" = ignore case
+            { $sort: { year: -1 } }
         ]).toArray();
     },
-
-    async getAllBooks() {
-        const db = await getDB();
-        return await db.collection(collectionName).aggregate([
-            { $project: { _id: 0, title: 1, author: 1, isbn: 1, category: 1, year: 1 } },
-            { $sort: { title: 1 } } // sắp xếp A-Z
-        ]).toArray();
-    },
-
 
     async getAllCategories() {
         const db = getDB(); // hàm này phải return ra client.db("library")

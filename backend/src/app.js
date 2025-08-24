@@ -15,12 +15,6 @@ app.use(express.json()); // Parse JSON
 app.use(express.urlencoded({ extended: true })); // Parse form-data
 app.use(morgan("dev")); // Log request trong dev
 
-// Check request
-// app.use((req, res, next) => {
-//   console.log(`📥 Incoming request: ${req.method} ${req.url}`);
-//   next();
-// });
-
 
 // Routes
 app.use("/api/auth", authRoutes);
