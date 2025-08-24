@@ -43,19 +43,6 @@
     } // Ngày cập nhật
 }
 
-/* 3. authors */
-{
-    "name": "Nguyễn Nhật Ánh", // Tên tác giả
-    "biography": "Nhà văn nổi tiếng Việt Nam, chuyên viết truyện thiếu nhi.", // Tiểu sử
-    "birthDate": {
-        "$date": "1955-05-07T00:00:00Z"
-    }, // Ngày sinh
-    "nationality": "Việt Nam", // Quốc tịch
-    "createdAt": {
-        "$date": "2025-08-13T08:00:00Z"
-    } // Ngày tạo
-}
-
 /* 4. borrows */
 {
     "borrowId": "BOR0001", // Mã mượn, tự sinh (giúp dễ nhìn, tra cứu)
@@ -77,19 +64,6 @@
     "updatedAt": {
         "$date": "2025-08-13T09:30:00Z"
     } // Ngày cập nhật bản ghi
-}
-
-/* 5. categories */
-{
-    "categoryId": "CAT001", // Mã định danh của thể loại (Category ID) — tự sinh theo quy tắc riêng của hệ thống
-    "name": "Khoa học máy tính", // Tên thể loại sách (Category Name) — ví dụ: Văn học, Toán học, Khoa học - Công nghệ, v.v.
-    "description": "Sách về lập trình, trí tuệ nhân tạo, mạng máy tính và các lĩnh vực liên quan", // Mô tả chi tiết về thể loại
-    "createdAt": {
-        "$date": "2025-08-13T03:00:00Z"
-    }, // Ngày giờ tạo category — lưu theo định dạng ISODate
-    "updatedAt": {
-        "$date": "2025-08-13T03:00:00Z"
-    } // Ngày giờ cập nhật gần nhất của category — dùng để quản lý lịch sử thay đổi
 }
 
 /* 6. reviews */

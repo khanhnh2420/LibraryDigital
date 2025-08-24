@@ -4,6 +4,7 @@ import morgan from "morgan";
 
 
 import authRoutes from "./routes/auth.routes.js";
+import bookRoutes from "./routes/book.routes.js";
 // import errorMiddleware from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -14,15 +15,10 @@ app.use(express.json()); // Parse JSON
 app.use(express.urlencoded({ extended: true })); // Parse form-data
 app.use(morgan("dev")); // Log request trong dev
 
-// Check request
-// app.use((req, res, next) => {
-//   console.log(`📥 Incoming request: ${req.method} ${req.url}`);
-//   next();
-// });
-
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/books", bookRoutes);
 
 // Middleware xử lý lỗi
 // app.use(errorMiddleware);
