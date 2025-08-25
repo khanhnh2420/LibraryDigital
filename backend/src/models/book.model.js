@@ -1,83 +1,119 @@
 // src/models/book.model.js
-import { ObjectId } from "mongodb";
 import { getDB } from "../config/db.js";
 
 const collectionName = "books";
 
 export const BookModel = {
-    async create(bookData) {
-        const db = getDB();
-        const result = await db.collection(collectionName).insertOne({
-            ...bookData,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
-        return result;
-    },
 
-    async update(bookId, updateData) {
-        const db = getDB();
-        const result = await db.collection(collectionName).updateOne(
-            { bookId },
-            { $set: { ...updateData, updatedAt: new Date() } }
-        );
-        return result;
-    },
-
-    async delete(bookId) {
-        const db = getDB();
-        const result = await db.collection(collectionName).deleteOne({ bookId });
-        return result;
-    },
-
+    // ========== BASIC CRUD ==========
     async getAllBooks() {
         const db = await getDB();
-        return await db.collection(collectionName).aggregate([
-            { $match: { available: { $gt: 0 } } }, // lọc avalb khác 0
-            { $project: { _id: 0, bookId: 1, title: 1, author: 1, isbn: 1, category: 1, year: 1, available: 1 } },
-            { $sort: { title: 1 } } // sắp xếp A-Z
-        ]).toArray();
+        return await db.collection(collectionName)
+            .find({})
+            .project({ _id: 0 })
+            .sort({ bookId: 1 })
+            .toArray();
     },
 
-    async findByBookId(bookId) {
+    async getBookById(bookId) {
         const db = await getDB();
-        const result = await db.collection(collectionName).aggregate([
-            { $match: { bookId: bookId } },
-            { $project: { _id: 0, isbn: 0, createdAt: 0, updatedAt: 0 } }
-        ]).toArray();
-        return result[0]; // vì bookId chỉ có 1 cuốn
+        return await db.collection(collectionName)
+            .findOne({ bookId }, { projection: { _id: 0 } });
     },
 
-    async findByISBN(isbn) {
+    async getBookByISBN(isbn) {
         const db = await getDB();
-        const result = await db.collection(collectionName).aggregate([
-            { $match: { isbn: isbn } },
-            { $project: { _id: 0, isbn: 0, createdAt: 0, updatedAt: 0 } }
-        ]).toArray();
-        return result[0]; // vì ISBN chỉ có 1 cuốn
+        return await db.collection(collectionName)
+            .findOne({ isbn }, { projection: { _id: 0 } });
     },
 
-    async findByCategory(category) {
+    async createBook(bookData) {
         const db = await getDB();
-        return await db.collection(collectionName).aggregate([
-            { $match: { category: category } },
-            // { $project: { _id: 0, title: 1, author: 1, category: 1, year: 1 } },
-            { $sort: { year: -1 } } // sắp xếp theo năm giảm dần
-        ]).toArray();
+        const newBook = {
+            ...bookData,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        await db.collection(collectionName).insertOne(newBook);
+        return newBook;
     },
 
-    async findByAuthor(author) {
+    async updateBook(bookId, updateData) {
         const db = await getDB();
-        return await db.collection(collectionName).aggregate([
-            { $match: { author: { $regex: author, $options: "i" } } }, // "i" = ignore case
-            { $sort: { year: -1 } }
-        ]).toArray();
-    },
-
-    async getAllCategories() {
-        const db = getDB(); // hàm này phải return ra client.db("library")
-        const result = await db.collection(collectionName).distinct("category");
+        const result = await db.collection(collectionName)
+            .updateOne(
+                { bookId },
+                { $set: { ...updateData, updatedAt: new Date() } }
+            );
         return result;
+    },
+
+    async deleteBook(bookId) {
+        const db = await getDB();
+        const result = await db.collection(collectionName)
+            .deleteOne({ bookId });
+        return result;
+    },
+
+    // ========== QUERY METHODS ==========
+    async getBooksByCategory(categoryId) {
+        const db = await getDB();
+        return await db.collection(collectionName)
+            .find({ categoryId })
+            .project({ _id: 0 })
+            .toArray();
+    },
+
+    async getBooksByAuthor(authorId) {
+        const db = await getDB();
+        return await db.collection(collectionName)
+            .find({ authorId })
+            .project({ _id: 0 })
+            .toArray();
+    },
+
+    async searchBooks(searchTerm) {
+        const db = await getDB();
+        return await db.collection(collectionName)
+            .find({
+                $or: [
+                    { title: { $regex: searchTerm, $options: 'i' } },
+                    { description: { $regex: searchTerm, $options: 'i' } }
+                ]
+            })
+            .project({ _id: 0 })
+            .toArray();
+    },
+
+    async getAvailableBooks() {
+        const db = await getDB();
+        return await db.collection(collectionName)
+            .find({ available: { $gt: 0 } })
+            .project({ _id: 0 })
+            .toArray();
+    },
+
+    // ========== UTILITY METHODS ==========
+    async bookExists(bookId) {
+        const db = await getDB();
+        const count = await db.collection(collectionName)
+            .countDocuments({ bookId });
+        return count > 0;
+    },
+
+    validateBookData(bookData) {
+        const errors = [];
+        
+        if (!bookData.bookId) errors.push("bookId là bắt buộc");
+        if (!bookData.title) errors.push("title là bắt buộc");
+        if (!bookData.authorId) errors.push("authorId là bắt buộc");
+        if (!bookData.publisherId) errors.push("publisherId là bắt buộc");
+        if (!bookData.categoryId) errors.push("categoryId là bắt buộc");
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
     }
 
 };

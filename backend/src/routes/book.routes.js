@@ -7,23 +7,34 @@ const router = express.Router();
 // Lấy tất cả sách
 router.get("/", BookController.getAllBooks);
 
-// Lấy tất cả Category
-router.get("/categories", BookController.getAllCategories);
+// Lấy Book theo ID 
+router.get("/:bookId", BookController.getBookById);
 
 // Lấy Book theo ISBN
 router.get("/isbn/:isbn", BookController.getBookByISBN);
 
-// Lấy Book theo Category
-router.get("/category/:category", BookController.getBooksByCategory);
+// Lấy Book theo Category ID
+router.get("/category/:categoryId", BookController.getBooksByCategory);
 
-// Lấy Book theo Author
-router.get("/:author", BookController.getBooksByAuthor);
+// Lấy Book theo Author ID
+router.get("/author/:authorId", BookController.getBooksByAuthor);
 
-// Lấy Book theo ID 
-router.get("/:bookId", BookController.getBookByBookId);
+// // Tìm kiếm sách
+// router.get("/search/:searchTerm", BookController.searchBooks);
 
+// // Lấy sách available
+// router.get("/available/books", BookController.getAvailableBooks);
+
+
+// Tạo book mới
 router.post("/", BookController.create);
+
+// Cập nhật book
 router.put("/:bookId", BookController.update);
+
+// Xóa book
 router.delete("/:bookId", BookController.remove);
+
+console.log('✅ Books loaded successfully');
 
 export default router;
