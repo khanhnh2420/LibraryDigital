@@ -14,6 +14,17 @@ export const BookController = {
         }
     },
 
+    // Lấy 100 bất kì
+    getRandomBooks: async (req, res) => {
+        try {
+            const books = await BookModel.getRandomBooks();
+            return res.status(200).json(books);
+        } catch (err) {
+            console.error("❌ Lỗi getRandomBooks:", err);
+            return res.status(500).json({ message: "Lỗi server" });
+        }
+    },
+
     // Lấy sách theo ID
     getBookById: async (req, res) => {
         try {

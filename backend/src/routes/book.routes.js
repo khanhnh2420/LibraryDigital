@@ -4,8 +4,8 @@ import { BookController } from "../controllers/book.controller.js";
 
 const router = express.Router();
 
-// Lấy tất cả sách
-router.get("/", BookController.getAllBooks);
+// Lấy 100 bất kì
+router.get("/", BookController.getRandomBooks);
 
 // Lấy Book theo ID 
 router.get("/:bookId", BookController.getBookById);
@@ -20,7 +20,7 @@ router.get("/category/:categoryId", BookController.getBooksByCategory);
 router.get("/author/:authorId", BookController.getBooksByAuthor);
 
 // // Tìm kiếm sách
-// router.get("/search/:searchTerm", BookController.searchBooks);
+router.get("/search/:searchTerm", BookController.searchBooks);
 
 // // Lấy sách available
 // router.get("/available/books", BookController.getAvailableBooks);

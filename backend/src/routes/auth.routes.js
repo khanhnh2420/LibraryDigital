@@ -8,6 +8,6 @@ router.post("/register", AuthController.registerUser);
 // Đăng nhập
 router.post("/login", AuthController.login);
 
-console.log('✅Auth loaded successfully');
+console.log('✅ Auth loaded successfully');
 
 export default router;
