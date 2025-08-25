@@ -1,13 +1,7 @@
 // models/user.model.js
 import { getDB } from "../config/db.js";
-import { hashPasswordWithSignature } from "../utils/hash.js";
+import { hashPasswordWithSignature, comparePasswordWithSignature } from "../utils/hash.js";
 
-// Tạo userId: SV<username> | GV<username> | AD<username>
-export function generateUserId(role = "student", username = "") {
-  const r = String(role || "").toLowerCase();
-  const prefix = r === "student" ? "SV" : r === "librarian" ? "GV" : "AD";
-  return prefix + String(username || "");
-}
 
 export const UserModel = {
   collection: "users",
@@ -31,7 +25,7 @@ export const UserModel = {
     };
   },
 
-  // Tạo user: nhận password thô, model sẽ tự hash + gán userId
+  // 📌 Tạo user mới
   async createUser(userData) {
     const db = getDB();
 
@@ -41,9 +35,6 @@ export const UserModel = {
       ...userData
     };
 
-    // userId nếu chưa có thì tự dựng
-    base.userId = base.userId || generateUserId(role, base.username);
-
     // Hash password & xóa password thô
     if (!base.password) {
       throw new Error("Password is required");
@@ -51,32 +42,75 @@ export const UserModel = {
     base.passwordHash = await hashPasswordWithSignature(base.password);
     delete base.password;
 
-    // Chuẩn hóa thêm (phòng trường hợp client truyền createdAt/lastLogin lạ)
+    // Chuẩn hóa thêm
     base.createdAt = base.createdAt || new Date();
     base.lastLogin = null;
 
     const result = await db.collection(this.collection).insertOne(base);
 
-    // Trả về thông tin an toàn + insertedId
+    // Trả về thông tin an toàn
     const { passwordHash, ...safeUser } = base;
     return { insertedId: result.insertedId, user: { ...safeUser, _id: result.insertedId } };
   },
 
+  // 📌 Tìm user theo email
   async findByEmail(email) {
     const db = getDB();
     return db.collection(this.collection).findOne({ email });
   },
 
+  // 📌 Tìm user theo username
   async findByUsername(username) {
     const db = getDB();
     return db.collection(this.collection).findOne({ username });
   },
 
+  // 📌 Tìm user theo userId
+  async findByUserId(userId) {
+    const db = getDB();
+    return db.collection(this.collection).findOne({ userId });
+  },
+
+  // 📌 Tìm user theo refreshToken (phục vụ logout / refresh token)
+  async findByRefreshToken(refreshToken) {
+    const db = getDB();
+    return db.collection(this.collection).findOne({ refreshToken });
+  },
+
+  // 📌 Lưu refreshToken
   async saveRefreshToken(userId, refreshToken) {
     const db = getDB();
     await db.collection(this.collection).updateOne(
       { userId },
       { $set: { refreshToken, lastLogin: new Date() } }
     );
+  },
+
+  // 📌 Xóa refreshToken (logout)
+  async removeRefreshToken(userId) {
+    const db = getDB();
+    await db.collection(this.collection).updateOne(
+      { userId },
+      { $set: { refreshToken: null } }
+    );
+  },
+
+  // 📌 So sánh mật khẩu khi login
+  async verifyPassword(user, rawPassword) {
+    return comparePasswordWithSignature(rawPassword, user.passwordHash);
+  },
+
+  // 📌 Cập nhật thông tin user (profile update)
+  async updateUser(userId, updates) {
+    const db = getDB();
+    const { password, ...rest } = updates;
+
+    const updateDoc = { ...rest };
+    if (password) {
+      updateDoc.passwordHash = await hashPasswordWithSignature(password);
+    }
+
+    await db.collection(this.collection).updateOne({ userId }, { $set: updateDoc });
+    return this.findByUserId(userId);
   }
 };
