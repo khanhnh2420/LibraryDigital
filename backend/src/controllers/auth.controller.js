@@ -111,7 +111,7 @@ export const AuthController = {
           userId: user.userId,
           username: user.username,
           role: user.role,
-          name: user.name
+          email: user.email,
         }
       });
     } catch (err) {
