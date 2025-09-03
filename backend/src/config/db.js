@@ -2,8 +2,8 @@ import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
 dotenv.config();
 
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.DB_NAME || "LibraryDigital";
+const uri = process.env.LIBRARYDIGITAL_DB_URI;
+const dbName = process.env.LIBRARYDIGITAL_DB_NAME || "LibraryDigital";
 
 let client, db;
 
