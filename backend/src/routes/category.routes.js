@@ -10,9 +10,6 @@ router.get("/", CategoryController.getAllCategories);
 // // Lấy category theo ID
 // router.get("/:categoryId", CategoryController.getCategoryById);
 
-// // Lấy sách theo category
-// router.get("/:categoryId/books", CategoryController.getBooksByCategory);
-
 // // Tìm kiếm categories
 // router.get("/search/:searchTerm", CategoryController.searchCategories);
 

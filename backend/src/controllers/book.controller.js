@@ -1,5 +1,5 @@
 // src/controllers/book.controller.js
-import { BookModel } from "../models/book.model.js";
+import { BookModel } from "../DAO/book.DAO.js";
 
 export const BookController = {
 
@@ -14,10 +14,21 @@ export const BookController = {
         }
     },
 
-    // Lấy 100 bất kì
-    getRandomBooks: async (req, res) => {
+    // Lấy 100 Book
+    get100Books: async (req, res) => {
         try {
-            const books = await BookModel.getRandomBooks();
+            const books = await BookModel.get100Books();
+            return res.status(200).json(books);
+        } catch (err) {
+            console.error("❌ Lỗi getRandomBooks:", err);
+            return res.status(500).json({ message: "Lỗi server" });
+        }
+    },
+
+    // Lấy 500 Book
+    get500Books: async (req, res) => {
+        try {
+            const books = await BookModel.get500Books();
             return res.status(200).json(books);
         } catch (err) {
             console.error("❌ Lỗi getRandomBooks:", err);

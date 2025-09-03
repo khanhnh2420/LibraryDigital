@@ -1,5 +1,5 @@
 // src/controllers/book.controller.js
-import { CategoryModel } from "../models/category.model.js";
+import { CategoryModel } from "../DAO/category.DAO.js";
 
 export const CategoryController = {
 
@@ -8,7 +8,7 @@ export const CategoryController = {
             const categories = await CategoryModel.getAllCategories();
             return res.status(200).json(categories);
         } catch (err) {
-            console.error("❌ Lỗi getAll Books:", err);
+            console.error("❌ Lỗi getAll Category:", err);
             return res.status(500).json({ err });
         }
     },

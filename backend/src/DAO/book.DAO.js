@@ -66,11 +66,37 @@ export const BookModel = {
             .toArray();
     },
 
-    async getRandomBooks(limit = 100) {
+    async get100Books(limit = 100) {
         const db = await getDB();
         return await db.collection(collectionName)
             .aggregate([
-                { $sample: { size: limit } },   // Lấy ngẫu nhiên 'limit' bản ghi
+                { $sort: { _id: -1 } },  
+                {
+                    $group: {
+                        _id: "$bookId",         
+                        doc: { $first: "$$ROOT" }
+                    }
+                },
+                { $replaceRoot: { newRoot: "$doc" } },
+                { $limit: limit },
+                ...bookAggregation
+            ])
+            .toArray();
+    },
+
+    async get500Books(limit = 500) {
+        const db = await getDB();
+        return await db.collection(collectionName)
+            .aggregate([
+                { $sort: { _id: -1 } },  
+                {
+                    $group: {
+                        _id: "$bookId",         
+                        doc: { $first: "$$ROOT" }
+                    }
+                },
+                { $replaceRoot: { newRoot: "$doc" } },
+                { $limit: limit },
                 ...bookAggregation
             ])
             .toArray();

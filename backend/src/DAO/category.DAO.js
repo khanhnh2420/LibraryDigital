@@ -5,9 +5,9 @@ import { getDB } from "../config/db.js";
 const collectionName = "categories";
 
 export const CategoryModel = {
-    
+
     // ========== CRUD OPERATIONS ==========
-    
+
     /**
      * Lấy tất cả categories
      */
@@ -51,11 +51,11 @@ export const CategoryModel = {
         const result = await db.collection(collectionName)
             .updateOne(
                 { categoryId },
-                { 
-                    $set: { 
-                        ...updateData, 
-                        updatedAt: new Date() 
-                    } 
+                {
+                    $set: {
+                        ...updateData,
+                        updatedAt: new Date()
+                    }
                 }
             );
         return result;
@@ -72,7 +72,7 @@ export const CategoryModel = {
     },
 
     // ========== SPECIAL QUERIES ==========
-    
+
     /**
      * Kiểm tra category có tồn tại không
      */
@@ -89,7 +89,7 @@ export const CategoryModel = {
     async getCategoriesPaginated(page = 1, limit = 10) {
         const db = await getDB();
         const skip = (page - 1) * limit;
-        
+
         const [categories, total] = await Promise.all([
             db.collection(collectionName)
                 .find({})
@@ -118,8 +118,8 @@ export const CategoryModel = {
     async searchCategories(searchTerm) {
         const db = await getDB();
         return await db.collection(collectionName)
-            .find({ 
-                name: { $regex: searchTerm, $options: 'i' } 
+            .find({
+                name: { $regex: searchTerm, $options: 'i' }
             })
             .project({ _id: 0, createdAt: 0, updatedAt: 0 })
             .sort({ categoryId: 1 })
@@ -131,7 +131,6 @@ export const CategoryModel = {
      */
     async getPopularCategories(limit = 5) {
         const db = await getDB();
-        // Giả sử có collection books với trường categoryId
         return await db.collection('books')
             .aggregate([
                 { $group: { _id: "$categoryId", count: { $sum: 1 } } },
@@ -159,25 +158,25 @@ export const CategoryModel = {
     },
 
     // ========== VALIDATION METHODS ==========
-    
+
     /**
      * Validate category data trước khi create/update
      */
     validateCategoryData(categoryData) {
         const errors = [];
-        
+
         if (!categoryData.categoryId) {
             errors.push("categoryId là bắt buộc");
         }
-        
+
         if (!categoryData.name || categoryData.name.trim().length === 0) {
             errors.push("Tên category là bắt buộc");
         }
-        
+
         if (categoryData.name && categoryData.name.length > 100) {
             errors.push("Tên category không được vượt quá 100 ký tự");
         }
-        
+
         return {
             isValid: errors.length === 0,
             errors

@@ -4,8 +4,11 @@ import { BookController } from "../controllers/book.controller.js";
 
 const router = express.Router();
 
-// Lấy 100 bất kì
-router.get("/", BookController.getRandomBooks);
+// Lấy 100 Book
+router.get("/", BookController.get100Books);
+
+// Lấy 500 Book
+router.get("/500Books", BookController.get500Books);
 
 // Lấy Book theo ID 
 router.get("/:bookId", BookController.getBookById);

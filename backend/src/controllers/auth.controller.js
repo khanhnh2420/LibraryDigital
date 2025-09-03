@@ -1,5 +1,5 @@
 // controllers/auth.controller.js
-import { UserModel } from "../models/user.model.js";
+import { UsersDAO } from "../DAO/user.DAO.js";
 import { comparePasswordWithSignature } from "../utils/hash.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -20,8 +20,8 @@ export const AuthController = {
       }
 
       const [existEmail, existUsername] = await Promise.all([
-        UserModel.findByEmail(email),
-        UserModel.findByUsername(username)
+        UsersDAO.findByEmail(email),
+        UsersDAO.findByUsername(username)
       ]);
 
       if (existEmail || existUsername) {
@@ -36,7 +36,7 @@ export const AuthController = {
       const userIdPrefix = assignedRole === "student" ? "SV" : "GV";
       const userId = userIdPrefix + username;
 
-      const result = await UserModel.createUser({
+      const result = await UsersDAO.createUser({
         username,
         email,
         password,
@@ -51,7 +51,7 @@ export const AuthController = {
         const payload = { userId, role: assignedRole };
         const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
         const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
-        await UserModel.saveRefreshToken(userId, refreshToken);
+        await UsersDAO.saveRefreshToken(userId, refreshToken);
 
         return res.status(201).json({
           message: "Tạo tài khoản thành công",
@@ -77,7 +77,7 @@ export const AuthController = {
         return res.status(400).json({ message: "Vui lòng nhập đủ username và password" });
       }
 
-      const user = await UserModel.findByUsername(username);
+      const user = await UsersDAO.findByUsername(username);
       if (!user) {
         return res.status(400).json({ message: "Sai username hoặc password" });
       }
@@ -88,10 +88,10 @@ export const AuthController = {
       }
 
       const payload = { userId: user.userId, role: user.role };
-      const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
+      const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "30m" });
       const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
 
-      await UserModel.saveRefreshToken(user.userId, refreshToken);
+      await UsersDAO.saveRefreshToken(user.userId, refreshToken);
 
       // Web -> gửi cookie, Mobile -> trả refreshToken JSON
       if (clientType === "web") {
@@ -112,6 +112,8 @@ export const AuthController = {
           username: user.username,
           role: user.role,
           email: user.email,
+          name: user.name,
+          phone: user.phone,
         }
       });
     } catch (err) {
@@ -127,9 +129,9 @@ export const AuthController = {
       const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
       if (!refreshToken) return res.sendStatus(204);
 
-      const user = await UserModel.findByRefreshToken(refreshToken);
+      const user = await UsersDAO.findByRefreshToken(refreshToken);
       if (user) {
-        await UserModel.saveRefreshToken(user.userId, null);
+        await UsersDAO.saveRefreshToken(user.userId, null);
       }
 
       // Xóa cookie cho web
@@ -152,9 +154,10 @@ export const AuthController = {
   refreshAccessToken: async (req, res) => {
     try {
       const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+      console.log(refreshToken)
       if (!refreshToken) return res.status(401).json({ message: "Không có token" });
 
-      const user = await UserModel.findByRefreshToken(refreshToken);
+      const user = await UsersDAO.findByRefreshToken(refreshToken);
       if (!user) return res.status(403).json({ message: "Token không hợp lệ" });
 
       jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err) => {
