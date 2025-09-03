@@ -1,25 +1,25 @@
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
-
 dotenv.config();
 
-const client = new MongoClient(process.env.LIBRARYDIGITAL_DB_URI);
-let db;
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.DB_NAME || "LibraryDigital";
+
+let client, db;
 
 export async function connectDB() {
-  try {
-    await client.connect();
-    db = client.db(process.env.LIBRARYDIGITAL_DB_NAME);
-    console.log("✅ Connected to MongoDB");
-  } catch (error) {
-    console.error("❌ DB connection failed:", error);
-    process.exit(1);
-  }
-}
-
-export function getDB() {
-  if (!db) {
-    throw new Error("Database not initialized. Call connectDB first.");
-  }
+  if (db) return db;
+  client = new MongoClient(uri);
+  await client.connect();
+  db = client.db(dbName);
+  console.log("✅ Connected to MongoDB");
   return db;
+}
+export function getDB() {
+  if (!db) throw new Error("Database not initialized. Call connectDB first.");
+  return db;
+}
+export function getClient() {
+  if (!client) throw new Error("Mongo client not initialized");
+  return client;
 }
