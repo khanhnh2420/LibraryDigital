@@ -1,26 +1,54 @@
-import { useMemo, useState } from "react";
-import { Button, Input, Modal, Form, Space, Table, Typography, Popconfirm, message } from "antd";
+import { useMemo, useState, useEffect } from "react";
+import { Button, Input, Modal, Form, Space, Table, Typography, Popconfirm, message, Upload, Select } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { useListBooksQuery, useCreateBookMutation, useDeleteBookMutation } from "@/services/booksApi";
 import { useNavigate } from "react-router-dom";
+
+import { useListBooksQuery, useDeleteBookMutation } from "@/services/booksApi";
+import { useListCategoriesQuery } from "@/services/refDataApi";
+
+import AddBookModal from "@/components/books/AddBookModal";
 
 export default function Books() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [form] = Form.useForm();
   const navigate = useNavigate();
 
-  const { data, isFetching } = useListBooksQuery({ page, pageSize, q });
-  const [createBook, { isLoading: isCreating }] = useCreateBookMutation();
+  // q = query thực tế gửi BE; qInput = giá trị đang gõ
+  const [q, setQ] = useState("");
+  const [qInput, setQInput] = useState("");
+
+  // đồng bộ qInput khi q đổi (ví dụ khi clear)
+  useEffect(() => { setQInput(q); }, [q]);
+
+  // Debounce: sau 400ms không gõ tiếp thì tìm
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQ(qInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [qInput]);
+
+  const [categoryId, setCategoryId] = useState();
+  const { data: cats } = useListCategoriesQuery({ limit: 200 });
+
+  const { data, isFetching, refetch } = useListBooksQuery({ page, pageSize, q, categoryId });
   const [deleteBook] = useDeleteBookMutation();
 
   const columns = useMemo(
     () => [
-      { title: "Title", dataIndex: "title", key: "title",
-        render: (t, r) => <Typography.Link onClick={() => navigate(`/books/${r.id}`)}>{t}</Typography.Link> },
-      { title: "Author", key: "author", render: (_, r) => (r.author && r.author.name) || "-" },
+      {
+        title: "Title",
+        dataIndex: "title",
+        key: "title",
+        render: (t, r) => (
+          <Typography.Link onClick={() => navigate(`/books/${r.bookId}`)}>
+            {t}
+          </Typography.Link>
+        )
+      },
+      { title: "Author", key: "author", render: (_, r) => (r.author && r.author.name) || r.authorName || "-" },
       { title: "Year", dataIndex: "year", key: "year", width: 80 },
       { title: "ISBN", dataIndex: "isbn", key: "isbn", width: 140 },
       {
@@ -32,8 +60,9 @@ export default function Books() {
               title="Delete this book?"
               onConfirm={async () => {
                 try {
-                  await deleteBook(r.id).unwrap();
+                  await deleteBook(r.bookId).unwrap();
                   message.success("Deleted");
+                  refetch();
                 } catch (e) {
                   message.error(e?.data?.message || "Delete failed");
                 }
@@ -45,67 +74,59 @@ export default function Books() {
         )
       }
     ],
-    [navigate, deleteBook]
+    [navigate, deleteBook, refetch]
   );
-
-  const onCreate = async () => {
-    try {
-      const values = await form.validateFields();
-      await createBook(values).unwrap();
-      message.success("Book created");
-      setOpen(false);
-      form.resetFields();
-    } catch (err) {
-      if (err?.errorFields) return; // form invalid
-      message.error(err?.data?.message || "Create failed");
-    }
-  };
 
   return (
     <div>
       <div className="page-header">
         <Typography.Title level={3} style={{ margin: 0 }}>Books</Typography.Title>
-        <Space>
-          <Input.Search placeholder="Search title/ISBN..." allowClear onSearch={(v) => { setQ(v); setPage(1); }} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Add Book</Button>
+        <Space direction="vertical" size={4} align="end">
+          <Space>
+            <Select
+              allowClear
+              placeholder="Category"
+              style={{ width: 180 }}
+              options={(cats?.items ?? []).map(c => ({ value: c.categoryId, label: c.name }))}
+              value={categoryId}
+              onChange={(v) => { setCategoryId(v); setPage(1); }}
+            />
+            <Input.Search
+              value={qInput}
+              allowClear
+              placeholder="Search title / description / ISBN …  (tips: id:BK000123, isbn:7109...)"
+              onChange={(e) => setQInput(e.target.value)}
+              onSearch={(v) => { setQ(v.trim()); setPage(1); }} // Enter/click tìm ngay (bỏ debounce)
+              style={{ width: 360 }}
+            />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+              Add Book
+            </Button>
+          </Space>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Mẹo: <code>id:BK000123</code> tìm theo Book ID · <code>isbn:7109441176351</code> hoặc chỉ gõ số ISBN
+          </Typography.Text>
         </Space>
       </div>
 
       <Table
-        rowKey="id"
+        rowKey="bookId"
         loading={isFetching}
-        dataSource={(data && data.items) || []}
+        dataSource={data?.items || []}
         columns={columns}
         pagination={{
-          current: (data && data.page) || page,
-          pageSize: (data && data.pageSize) || pageSize,
-          total: (data && data.total) || 0,
+          current: data?.page || page,
+          pageSize: data?.pageSize || pageSize,
+          total: data?.total || 0,
           onChange: (p, ps) => { setPage(p); setPageSize(ps); }
         }}
       />
 
-      <Modal
-        title="Add Book"
+      <AddBookModal
         open={open}
-        onCancel={() => setOpen(false)}
-        onOk={onCreate}
-        okButtonProps={{ loading: isCreating }}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="isbn" label="ISBN">
-            <Input />
-          </Form.Item>
-          <Form.Item name="year" label="Year">
-            <Input type="number" />
-          </Form.Item>
-          <Form.Item name="language" label="Language">
-            <Input />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onClose={() => setOpen(false)}
+        onCreated={() => refetch()}  // refetch lại list
+      />
     </div>
   );
 }

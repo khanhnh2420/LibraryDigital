@@ -11,6 +11,8 @@ import { ensureIndexes } from "./infra/ensureIndexes.js";
 // Routes mobile
 import authRoutes from "./routes/auth.routes.js";
 import bookRoutes from "./routes/book.routes.js";
+import authorRoutes from "./routes/author.routes.js";
+import publisherRoutes from "./routes/publisher.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import commentRoutes from "./routes/comment.routes.js";
 import userRoutes from "./routes/user.routes.js";
@@ -54,6 +56,13 @@ app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/loans", loansRoutes);
 app.use("/api/loanBatches", batchesRoutes);
+app.use("/api/authors", authorRoutes);
+app.use("/api/publishers", publisherRoutes);
+app.use("/api/categories", categoryRoutes);
+
+import uploadRoutes from "./routes/upload.routes.js";
+app.use("/api/upload", uploadRoutes);
+
 
 // Demo bảo vệ bằng JWT/role
 app.get("/api/admin/data", authenticateJWT, authorizeRoles("admin"), (req, res) => {
@@ -86,5 +95,6 @@ app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
   res.status(500).json({ error: "Internal Server Error" });
 });
+
 
 export default app;

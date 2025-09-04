@@ -4,10 +4,12 @@ import ProtectedRoute from "@/routes/ProtectedRoute";
 import Dashboard from "@/pages/Dashboard";
 import Books from "@/pages/Books";
 import BookDetail from "@/pages/BookDetail";
+import BookEdit from "@/pages/BookEdit";
 import Login from "@/pages/Login";
 import Categories from "@/pages/Categories";
 import Loans from "@/pages/Loans";
 import Users from "@/pages/Users";
+
 
 export default function App() {
   return (
@@ -18,6 +20,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="/books" element={<Books />} />
           <Route path="/books/:id" element={<BookDetail />} />
+          <Route path="/books/:id/edit" element={<BookEdit />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/loans" element={<Loans />} />
           <Route path="/users" element={<Users />} />

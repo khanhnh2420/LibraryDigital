@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { Provider, useDispatch } from "react-redux";
 import { BrowserRouter } from "react-router-dom";
-import { ConfigProvider, theme } from "antd";
+import { ConfigProvider, theme, App as AntdApp } from "antd";
 import App from "./App";
 import { store } from "./store";
 import "./styles.css";
@@ -27,7 +27,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             token: { colorPrimary: "#268DB8", borderRadius: 8 }
           }}
         >
-          <Bootstrap />
+          <AntdApp>
+            <Bootstrap />
+          </AntdApp>
         </ConfigProvider>
       </BrowserRouter>
     </Provider>

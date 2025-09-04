@@ -1,31 +1,55 @@
-// src/models/category.model.js
+// src/DAO/category.DAO.js
 import { ObjectId } from "mongodb";
 import { getDB } from "../config/db.js";
 
-const collectionName = "categories";
+const collection = "categories";
 
-export const CategoryModel = {
-
-    // ========== CRUD OPERATIONS ==========
+export const CategoryDAO = {
 
     /**
      * Lấy tất cả categories
      */
     async getAllCategories() {
         const db = await getDB();
-        return await db.collection(collectionName)
+        return await db.collection(collection)
             .find({})
             .project({ _id: 0, createdAt: 0, updatedAt: 0 })
             .sort({ categoryId: 1 })
             .toArray();
     },
 
+    async list({ q = "", limit = 50, page = 1, ids = [] } = {}) {
+        const db = await getDB();
+        const col = db.collection(collection);
+
+        const match = {};
+        if (q?.trim()) {
+            match.$or = [
+                { name: { $regex: q.trim(), $options: "i" } },
+                { categoryId: { $regex: q.trim(), $options: "i" } }
+            ];
+        }
+        if (Array.isArray(ids) && ids.length > 0) {
+            match.categoryId = { $in: ids };
+        }
+
+        const total = await col.countDocuments(match);
+        const items = await col.find(match, { projection: { _id: 0, categoryId: 1, name: 1 } })
+            .sort({ name: 1, categoryId: 1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .toArray();
+
+        return { items, total, page, pageSize: limit };
+    },
+
+    // ========== CRUD OPERATIONS ==========
     /**
      * Lấy category by ID
      */
     async getCategoryById(categoryId) {
         const db = await getDB();
-        return await db.collection(collectionName)
+        return await db.collection(collection)
             .findOne({ categoryId }, { projection: { _id: 0 } });
     },
 
@@ -39,7 +63,7 @@ export const CategoryModel = {
             createdAt: new Date(),
             updatedAt: new Date()
         };
-        const result = await db.collection(collectionName).insertOne(newCategory);
+        const result = await db.collection(collection).insertOne(newCategory);
         return { ...newCategory, _id: result.insertedId };
     },
 
@@ -48,7 +72,7 @@ export const CategoryModel = {
      */
     async updateCategory(categoryId, updateData) {
         const db = await getDB();
-        const result = await db.collection(collectionName)
+        const result = await db.collection(collection)
             .updateOne(
                 { categoryId },
                 {
@@ -66,7 +90,7 @@ export const CategoryModel = {
      */
     async deleteCategory(categoryId) {
         const db = await getDB();
-        const result = await db.collection(collectionName)
+        const result = await db.collection(collection)
             .deleteOne({ categoryId });
         return result;
     },
@@ -78,7 +102,7 @@ export const CategoryModel = {
      */
     async categoryExists(categoryId) {
         const db = await getDB();
-        const count = await db.collection(collectionName)
+        const count = await db.collection(collection)
             .countDocuments({ categoryId });
         return count > 0;
     },
@@ -91,14 +115,14 @@ export const CategoryModel = {
         const skip = (page - 1) * limit;
 
         const [categories, total] = await Promise.all([
-            db.collection(collectionName)
+            db.collection(collection)
                 .find({})
                 .project({ _id: 0, createdAt: 0, updatedAt: 0 })
                 .sort({ categoryId: 1 })
                 .skip(skip)
                 .limit(limit)
                 .toArray(),
-            db.collection(collectionName).countDocuments()
+            db.collection(collection).countDocuments()
         ]);
 
         return {
@@ -117,7 +141,7 @@ export const CategoryModel = {
      */
     async searchCategories(searchTerm) {
         const db = await getDB();
-        return await db.collection(collectionName)
+        return await db.collection(collection)
             .find({
                 name: { $regex: searchTerm, $options: 'i' }
             })

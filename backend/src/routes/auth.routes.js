@@ -20,5 +20,4 @@ router.get("/admin-only", authenticateJWT, authorizeRoles("admin"), (req, res) =
   res.json({ message: "Xin chào Admin!", user: req.user });
 });
 
-console.log('✅ Auth loaded successfully');
 export default router;

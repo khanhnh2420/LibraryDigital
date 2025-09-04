@@ -57,12 +57,16 @@ export async function ensureIndexes() {
   await db.collection("books").createIndex({ authorId: 1 });
   await db.collection("books").createIndex({ publisherId: 1 });
   await db.collection("books").createIndex({ available: -1 });
+  await db.collection("books").createIndex({ isbn: 1 });
 
 
   // ===== AUTHORS / PUBLISHERS / CATEGORIES =====
   await db.collection("authors").createIndex({ authorId: 1 }, { unique: true });
+  await db.collection("authors").createIndex({ name: 1 });
   await db.collection("publishers").createIndex({ publisherId: 1 }, { unique: true });
+  await db.collection("publishers").createIndex({ name: 1 });
   await db.collection("categories").createIndex({ categoryId: 1 }, { unique: true });
+  await db.collection("categories").createIndex({ name: 1 });
 
   // ===== COMMENTS =====
   await db.collection("comments").createIndex({ bookId: 1, createdAt: -1 });

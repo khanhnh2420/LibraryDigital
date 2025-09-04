@@ -5,7 +5,9 @@ import { CategoryController } from "../controllers/category.controller.js";
 const router = express.Router();
 
 // Lấy tất cả categories
-router.get("/", CategoryController.getAllCategories);
+router.get("/getAllCategories", CategoryController.getAllCategories);
+
+router.get("/", CategoryController.list);
 
 // // Lấy category theo ID
 // router.get("/:categoryId", CategoryController.getCategoryById);
@@ -24,7 +26,5 @@ router.get("/", CategoryController.getAllCategories);
 
 // // Xóa category
 // router.delete("/:categoryId", CategoryController.remove);
-
-console.log('✅ Categories loaded successfully');
 
 export default router;

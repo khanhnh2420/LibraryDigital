@@ -4,8 +4,8 @@ import { BookController } from "../controllers/book.controller.js";
 
 const router = express.Router();
 
-// Lấy 100 Book
-router.get("/", BookController.get100Books);
+// Lấy Books
+router.get("/", BookController.listPaged);
 
 // Lấy 500 Book
 router.get("/500Books", BookController.get500Books);
@@ -37,7 +37,5 @@ router.put("/:bookId", BookController.update);
 
 // Xóa book
 router.delete("/:bookId", BookController.remove);
-
-console.log('✅ Books loaded successfully');
 
 export default router;
