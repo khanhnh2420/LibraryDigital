@@ -2,7 +2,7 @@
 import { getDB } from "../config/db.js";
 
 /**
- * Idempotent: gọi lại nhiều lần cũng an toàn.
+ * Idempotent: có thể gọi lại nhiều lần
  * YÊU CẦU: connectDB() đã chạy trước đó.
  */
 export async function ensureIndexes() {
@@ -35,10 +35,19 @@ export async function ensureIndexes() {
 
   // ===== USERS =====
   await db.collection("users").createIndex({ userId: 1 }, { unique: true });
-  // Nếu có đăng nhập bằng username/email, có thể mở hai dòng sau:
   await db.collection("users").createIndex({ username: 1 }, { unique: true, sparse: true });
-  // await db.collection("users").createIndex({ email: 1 }, { unique: true, sparse: true });
-
+  await db.collection("users").createIndex({ email: 1 }, { unique: true, sparse: true });
+  await db.collection("users").createIndex({ role: 1 }, {});
+  await db.collection("users").createIndex({ status: 1 }, {});
+  await db.collection("users").createIndex({ lastLogin: -1 }, {});
+  await db.collection("users").createIndex(
+    { username: 1 },
+    { name: "uniq_username", unique: true, partialFilterExpression: { username: { $type: "string" } } }
+  );
+  await db.collection("users").createIndex(
+    { email: 1 },
+    { name: "uniq_email", unique: true, partialFilterExpression: { email: { $type: "string" } } }
+  );
   // ===== BOOKS =====
   await db.collection("books").createIndex({ bookId: 1 }, { unique: true });
 

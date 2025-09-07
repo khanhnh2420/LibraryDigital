@@ -1,4 +1,4 @@
-import { Card, Form, Input, Button, message } from "antd";
+import { Card, Form, Input, Button, App as AntdApp } from "antd";
 import { useLoginMutation } from "@/services/authApi";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "@/store/authSlice";
@@ -6,7 +6,10 @@ import { saveAuth } from "@/utils/token";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 
+const ALLOWED_ROLES = ["admin", "librarian"];
+
 export default function Login() {
+  const { message } = AntdApp.useApp(); // lấy message từ context
   const [form] = Form.useForm();
   const [login, { isLoading }] = useLoginMutation();
   const dispatch = useDispatch();
@@ -15,10 +18,17 @@ export default function Login() {
   const onFinish = async (values) => {
     try {
       const res = await login(values).unwrap();
+      const role = res?.user?.role;
+      
+      if (!role || !ALLOWED_ROLES.includes(role)) {
+        message.error("Tài khoản không có quyền truy cập trang Admin.");
+        return; // không lưu token, không chuyển trang
+      }
+
       dispatch(loginSuccess({ token: res.accessToken, user: res.user }));
       saveAuth(res.accessToken, res.user);
       message.success("Welcome back!");
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (err) {
       message.error(err?.data?.message || "Login failed");
     }
@@ -26,12 +36,8 @@ export default function Login() {
 
   return (
     <div className="login-container">
-      <Card
-        className="login-card"
-        title="Library Admin Login"
-        style={{ width: 360 }}
-      >
-        <Form form={form} layout="vertical" onFinish={onFinish}>
+      <Card className="login-card" title="Library Admin Login" style={{ width: 360 }}>
+        <Form form={form} layout="vertical" onFinish={onFinish} autoComplete="off">
           <Form.Item name="username" label="Username" rules={[{ required: true }]}>
             <Input autoFocus placeholder="Enter username" />
           </Form.Item>

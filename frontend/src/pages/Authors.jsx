@@ -1,20 +1,19 @@
-// src/pages/Categories.jsx
 import { useEffect, useMemo, useState } from "react";
 import { App as AntdApp, Button, Input, Modal, Form, Space, Table, Typography, Popconfirm } from "antd";
 import {
-  useListCategoriesPagedQuery,
-  useCreateCategoryMutation,
-  useUpdateCategoryMutation,
-  useDeleteCategoryMutation
-} from "@/services/categoriesApi";
+  useListAuthorsPagedQuery,
+  useCreateAuthorMutation,
+  useUpdateAuthorMutation,
+  useDeleteAuthorMutation
+} from "@/services/authorsApi";
 
-function UpsertCategoryModal({ open, onClose, init }) {
+function UpsertAuthorModal({ open, onClose, init }) {
   const { message } = AntdApp.useApp();
   const [form] = Form.useForm();
-  const isEdit = !!init?.categoryId;
+  const isEdit = !!init?.authorId;
 
-  const [createCategory, { isLoading: creating }] = useCreateCategoryMutation();
-  const [updateCategory, { isLoading: updating }] = useUpdateCategoryMutation();
+  const [createAuthor, { isLoading: creating }] = useCreateAuthorMutation();
+  const [updateAuthor, { isLoading: updating }] = useUpdateAuthorMutation();
 
   useEffect(() => {
     if (open) form.setFieldsValue(init || {});
@@ -25,11 +24,11 @@ function UpsertCategoryModal({ open, onClose, init }) {
     try {
       const values = await form.validateFields();
       if (isEdit) {
-        await updateCategory({ categoryId: init.categoryId, data: values }).unwrap();
-        message.success("Updated category");
+        await updateAuthor({ authorId: init.authorId, data: values }).unwrap();
+        message.success("Updated author");
       } else {
-        await createCategory(values).unwrap();
-        message.success("Created category");
+        await createAuthor(values).unwrap();
+        message.success("Created author");
       }
       onClose(true);
     } catch (e) {
@@ -40,7 +39,7 @@ function UpsertCategoryModal({ open, onClose, init }) {
 
   return (
     <Modal
-      title={isEdit ? "Edit Category" : "Add Category"}
+      title={isEdit ? "Edit Author" : "Add Author"}
       open={open}
       onCancel={() => onClose(false)}
       onOk={onSubmit}
@@ -48,22 +47,21 @@ function UpsertCategoryModal({ open, onClose, init }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        {/* Nếu BE tự sinh categoryId, để trống/disabled khi tạo mới */}
-        <Form.Item name="categoryId" label="Category ID">
-          <Input placeholder="CAT001" disabled={isEdit} />
+        <Form.Item name="authorId" label="Author ID">
+          <Input placeholder="AUTH001" disabled={isEdit} />
         </Form.Item>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
-          <Input placeholder="Tên danh mục" />
+          <Input placeholder="Tên tác giả" />
         </Form.Item>
-        <Form.Item name="description" label="Description">
-          <Input.TextArea placeholder="Mô tả" autoSize={{ minRows: 2, maxRows: 4 }} />
+        <Form.Item name="bio" label="Bio">
+          <Input.TextArea placeholder="Giới thiệu ngắn" autoSize={{ minRows: 2, maxRows: 4 }} />
         </Form.Item>
       </Form>
     </Modal>
   );
 }
 
-export default function Categories() {
+export default function Authors() {
   const { message } = AntdApp.useApp();
 
   const [page, setPage] = useState(1);
@@ -73,31 +71,21 @@ export default function Categories() {
   const [qInput, setQInput] = useState("");
   useEffect(() => { setQInput(q); }, [q]);
   useEffect(() => {
-    const t = setTimeout(() => {
-      setQ(qInput.trim());
-      setPage(1);
-    }, 400);
+    const t = setTimeout(() => { setQ(qInput.trim()); setPage(1); }, 400);
     return () => clearTimeout(t);
   }, [qInput]);
 
-  const { data, isFetching, refetch } = useListCategoriesPagedQuery({ page, pageSize, q });
-  const [deleteCategory] = useDeleteCategoryMutation();
+  const { data, isFetching, refetch } = useListAuthorsPagedQuery({ page, pageSize, q });
+  const [deleteAuthor] = useDeleteAuthorMutation();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
   const columns = useMemo(() => [
     { title: "Name", dataIndex: "name", key: "name" },
-    { title: "Category ID", dataIndex: "categoryId", key: "categoryId", width: 140 },
-    {
-      title: "Books",
-      dataIndex: "bookCount",
-      key: "bookCount",
-      width: 100,
-      align: "right",
-      render: (v) => v ?? "-"
-    },
-    { title: "Description", dataIndex: "description", key: "description", ellipsis: true },
+    { title: "Author ID", dataIndex: "authorId", key: "authorId", width: 140 },
+    { title: "Books", dataIndex: "bookCount", key: "bookCount", width: 100, align: "right", render: (v) => v ?? "-" },
+    { title: "Bio", dataIndex: "bio", key: "bio", ellipsis: true },
     {
       title: "Action",
       key: "action",
@@ -106,16 +94,16 @@ export default function Categories() {
         <Space>
           <Button size="small" onClick={() => { setEditing(r); setOpen(true); }}>Edit</Button>
           <Popconfirm
-            title="Delete this category?"
-            description={`Danh mục: ${r.name}`}
+            title="Delete this author?"
+            description={`Tác giả: ${r.name}`}
             onConfirm={async () => {
               try {
-                await deleteCategory(r.categoryId).unwrap();
+                await deleteAuthor(r.authorId).unwrap();
                 message.success("Deleted");
                 refetch();
               } catch (e) {
                 if (e?.status === 409) {
-                  message.error(e?.data?.message || "Không thể xoá: Category đang được dùng");
+                  message.error(e?.data?.message || "Không thể xoá: Tác giả đang được dùng");
                 } else {
                   message.error(e?.data?.message || "Delete failed");
                 }
@@ -127,32 +115,29 @@ export default function Categories() {
         </Space>
       )
     }
-  ], [deleteCategory, refetch, message]);
+  ], [deleteAuthor, refetch, message]);
 
   return (
     <div>
       <div className="page-header">
-        <Typography.Title level={3} style={{ margin: 0 }}>Categories</Typography.Title>
+        <Typography.Title level={3} style={{ margin: 0 }}>Authors</Typography.Title>
         <Space>
           <Input.Search
             value={qInput}
             allowClear
-            placeholder="Search category name/ID…"
+            placeholder="Search author name/ID…"
             onChange={(e) => setQInput(e.target.value)}
             onSearch={(v) => { setQ(v.trim()); setPage(1); }}
             style={{ width: 320 }}
           />
-          <Button
-            type="primary"
-            onClick={() => { setEditing(null); setOpen(true); }}
-          >
-            Add Category
+          <Button type="primary" onClick={() => { setEditing(null); setOpen(true); }}>
+            Add Author
           </Button>
         </Space>
       </div>
 
       <Table
-        rowKey="categoryId"
+        rowKey="authorId"
         loading={isFetching}
         dataSource={data?.items || []}
         columns={columns}
@@ -164,7 +149,7 @@ export default function Categories() {
         }}
       />
 
-      <UpsertCategoryModal
+      <UpsertAuthorModal
         open={open}
         init={editing}
         onClose={(ok) => {

@@ -31,7 +31,7 @@ export default function Books() {
   }, [qInput]);
 
   const [categoryId, setCategoryId] = useState();
-  const { data: cats } = useListCategoriesQuery({ limit: 200 });
+  const { data: cats } = useListCategoriesQuery({ limit: 200, q: "" });
 
   const { data, isFetching, refetch } = useListBooksQuery({ page, pageSize, q, categoryId });
   const [deleteBook] = useDeleteBookMutation();

@@ -1,6 +1,5 @@
 // controllers/auth.controller.js
 import { UsersDAO } from "../DAO/user.DAO.js";
-import { comparePasswordWithSignature } from "../utils/hash.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
@@ -9,55 +8,63 @@ dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev_refresh_secret";
 
-export const AuthController = {
-  // ==================== REGISTER ====================
-  registerUser: async (req, res) => {
-    try {
-      const { username, email, password, role, clientType } = req.body;
+// staff có quyền vào FE admin
+const STAFF_ROLES = new Set(["admin", "librarian"]);
 
+// ----- helpers -----
+function issueTokens(user) {
+  const payload = { userId: user.userId, role: user.role, username: user.username };
+  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "30m" });
+  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+  return { accessToken, refreshToken };
+}
+
+async function findByUsernameOrEmail(identifier) {
+  let user = await UsersDAO.findByUsername(identifier);
+  if (!user && identifier?.includes("@")) user = await UsersDAO.findByEmail(identifier);
+  return user;
+}
+
+// ----- controller -----
+export const AuthController = {
+  // =============== REGISTER (client) ===============
+  async registerUser(req, res) {
+    try {
+      const { username, email, password, role, clientType } = req.body || {};
       if (!username || !email || !password) {
         return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
       }
 
       const [existEmail, existUsername] = await Promise.all([
         UsersDAO.findByEmail(email),
-        UsersDAO.findByUsername(username)
+        UsersDAO.findByUsername(username),
       ]);
-
       if (existEmail || existUsername) {
         return res.status(400).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
       }
 
-      // Chỉ cho phép role hợp lệ (admin không được client tạo)
-      const allowedRoles = ["student", "teacher"];
-      const assignedRole = allowedRoles.includes(role) ? role : "student";
-
-      // Tạo userId dựa trên role + username
+      const allowedRoles = ["student", "teacher"]; // admin/librarian không cho tự đăng ký
+      const assignedRole = allowedRoles.includes(String(role)) ? role : "student";
       const userIdPrefix = assignedRole === "student" ? "SV" : "GV";
       const userId = userIdPrefix + username;
 
-      const result = await UsersDAO.createUser({
+      const { user } = await UsersDAO.createUser({
+        userId,
         username,
-        email,
-        password,
+        email: String(email).trim().toLowerCase(),
+        password, // DAO sẽ hash
         role: assignedRole,
-        userId
+        status: "active",
       });
 
-      const user = { ...result.user, userId };
-
-      // Nếu client muốn auto-login sau đăng ký (mobile), trả luôn token
       if (clientType === "mobile") {
-        const payload = { userId, role: assignedRole };
-        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
-        const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+        const { accessToken, refreshToken } = issueTokens(user);
         await UsersDAO.saveRefreshToken(userId, refreshToken);
-
         return res.status(201).json({
           message: "Tạo tài khoản thành công",
           user,
           accessToken,
-          refreshToken
+          refreshToken,
         });
       }
 
@@ -68,53 +75,87 @@ export const AuthController = {
     }
   },
 
-  // ==================== LOGIN ====================
-  login: async (req, res) => {
+  // =============== LOGIN (FE Dashboard: admin + librarian) ===============
+  async staffLogin(req, res) {
     try {
-      const { username, password, clientType } = req.body;
-
+      const { username, password } = req.body || {};
       if (!username || !password) {
         return res.status(400).json({ message: "Vui lòng nhập đủ username và password" });
       }
 
-      const user = await UsersDAO.findByUsername(username);
-      if (!user) {
-        return res.status(400).json({ message: "Sai username hoặc password" });
+      const user = await findByUsernameOrEmail(username);
+      if (!user) return res.status(401).json({ message: "Sai thông tin đăng nhập" });
+
+      if (!STAFF_ROLES.has(user.role)) {
+        return res.status(403).json({ message: "Chỉ nhân sự thư viện được phép đăng nhập" });
+      }
+      if (user.status !== "active") {
+        return res.status(403).json({ message: "Tài khoản không ở trạng thái active" });
+      }
+      if (!user.passwordHash) {
+        return res.status(400).json({ message: "Tài khoản chưa có mật khẩu. Hãy đặt lại mật khẩu." });
       }
 
-      const isMatch = await comparePasswordWithSignature(password, user.passwordHash);
-      if (!isMatch) {
-        return res.status(400).json({ message: "Sai username hoặc password" });
-      }
+      const ok = await UsersDAO.verifyPassword(user, password);
+      if (!ok) return res.status(401).json({ message: "Sai thông tin đăng nhập" });
 
-      const payload = { userId: user.userId, role: user.role };
-      const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "30m" });
-      const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
-
+      const { accessToken, refreshToken } = issueTokens(user);
       await UsersDAO.saveRefreshToken(user.userId, refreshToken);
 
-      // Web -> gửi cookie, Mobile -> trả refreshToken JSON
+      // FE admin (web) – lưu refresh token vào cookie httpOnly
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const { passwordHash, refreshToken: rt, ...safe } = user;
+      return res.json({ message: "Đăng nhập thành công", accessToken, user: safe });
+    } catch (err) {
+      console.error("❌ Lỗi đăng nhập (staff):", err);
+      return res.status(500).json({ message: "Lỗi server" });
+    }
+  },
+
+  // =============== LOGIN (generic: mobile/web client) ===============
+  async login(req, res) {
+    try {
+      const { username, password, clientType } = req.body || {};
+      if (!username || !password) {
+        return res.status(400).json({ message: "Vui lòng nhập đủ username và password" });
+      }
+
+      const user = await findByUsernameOrEmail(username);
+      if (!user) return res.status(401).json({ message: "Sai thông tin đăng nhập" });
+      if (user.status !== "active") {
+        return res.status(403).json({ message: "Tài khoản không ở trạng thái active" });
+      }
+      if (!user.passwordHash) {
+        return res.status(400).json({ message: "Tài khoản chưa có mật khẩu. Hãy đặt lại mật khẩu." });
+      }
+
+      const ok = await UsersDAO.verifyPassword(user, password);
+      if (!ok) return res.status(401).json({ message: "Sai thông tin đăng nhập" });
+
+      const { accessToken, refreshToken } = issueTokens(user);
+      await UsersDAO.saveRefreshToken(user.userId, refreshToken);
+
       if (clientType === "web") {
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
           sameSite: "Strict",
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
       }
 
-      return res.status(200).json({
+      const { passwordHash, refreshToken: rt, ...safe } = user;
+      return res.json({
         message: "Đăng nhập thành công",
         accessToken,
         refreshToken: clientType === "mobile" ? refreshToken : undefined,
-        user: {
-          userId: user.userId,
-          username: user.username,
-          role: user.role,
-          email: user.email,
-          name: user.name,
-          phone: user.phone,
-        }
+        user: safe,
       });
     } catch (err) {
       console.error("❌ Lỗi đăng nhập:", err);
@@ -122,39 +163,34 @@ export const AuthController = {
     }
   },
 
-  // ==================== LOGOUT ====================
-  logout: async (req, res) => {
+  // =============== LOGOUT ===============
+  async logout(req, res) {
     try {
-      // Lấy refreshToken từ cookie (web) hoặc body (mobile)
       const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
       if (!refreshToken) return res.sendStatus(204);
 
       const user = await UsersDAO.findByRefreshToken(refreshToken);
-      if (user) {
-        await UsersDAO.saveRefreshToken(user.userId, null);
-      }
+      if (user) await UsersDAO.saveRefreshToken(user.userId, null);
 
-      // Xóa cookie cho web
       if (req.cookies?.refreshToken) {
         res.clearCookie("refreshToken", {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "Strict"
+          sameSite: "Strict",
         });
       }
 
-      return res.status(200).json({ message: "Đăng xuất thành công" });
+      return res.json({ message: "Đăng xuất thành công" });
     } catch (err) {
       console.error("❌ Lỗi logout:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },
 
-  // ==================== REFRESH TOKEN ====================
-  refreshAccessToken: async (req, res) => {
+  // =============== REFRESH ACCESS TOKEN ===============
+  async refreshAccessToken(req, res) {
     try {
       const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
-      console.log(refreshToken)
       if (!refreshToken) return res.status(401).json({ message: "Không có token" });
 
       const user = await UsersDAO.findByRefreshToken(refreshToken);
@@ -162,15 +198,13 @@ export const AuthController = {
 
       jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err) => {
         if (err) return res.status(403).json({ message: "Token hết hạn" });
-
-        const payload = { userId: user.userId, role: user.role };
+        const payload = { userId: user.userId, role: user.role, username: user.username };
         const newAccessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
-
-        return res.status(200).json({ accessToken: newAccessToken });
+        return res.json({ accessToken: newAccessToken });
       });
     } catch (err) {
       console.error("❌ Lỗi refresh token:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
-  }
+  },
 };
