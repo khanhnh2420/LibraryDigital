@@ -3,11 +3,13 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { loginSuccess, logout } from "@/store/authSlice";
 import { getToken, getUser, saveAuth, clearAuth } from "@/utils/token";
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+// ✅ Lấy từ ENV, mặc định dùng '/api' (đi qua Netlify proxy)
+const raw = import.meta.env.VITE_API_BASE_URL || "/api";
+const baseUrl = raw.replace(/\/$/, ""); // bỏ dấu '/' cuối nếu có
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl,
-  credentials: "include", // gửi cookie refreshToken
+  baseUrl,                     // ví dụ: '/api'
+  credentials: "include",      // nếu dùng refreshToken qua cookie, giữ include
   prepareHeaders: (headers, { getState }) => {
     const token = getState()?.auth?.token || getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -17,7 +19,7 @@ const rawBaseQuery = fetchBaseQuery({
 
 const shouldSkipReauth = (args) => {
   const url = typeof args === "string" ? args : args?.url || "";
-
+  // giữ nguyên: không reauth cho các đường auth
   return url.includes("/auth/refresh") || url.includes("/auth/login") || url.includes("/auth/staff/login");
 };
 
@@ -25,23 +27,16 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await rawBaseQuery(args, api, extraOptions);
 
   if (result?.error?.status === 401 && !shouldSkipReauth(args)) {
-    // Thử refresh access token bằng cookie refreshToken
-    const refreshRes = await rawBaseQuery(
-      { url: "/auth/refresh", method: "POST" },
-      api,
-      extraOptions
-    );
-
+    // Thử refresh bằng cookie (được set khi login)
+    const refreshRes = await rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions);
     const newToken = refreshRes?.data?.accessToken;
+
     if (newToken) {
       const stateUser = api.getState()?.auth?.user || getUser();
       api.dispatch(loginSuccess({ token: newToken, user: stateUser }));
       saveAuth(newToken, stateUser);
-
-      // retry request gốc sau khi đã cập nhật token vào store
-      result = await rawBaseQuery(args, api, extraOptions);
+      result = await rawBaseQuery(args, api, extraOptions); // retry
     } else {
-      // refresh fail → đăng xuất
       api.dispatch(logout());
       clearAuth();
     }

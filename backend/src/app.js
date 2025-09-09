@@ -32,6 +32,11 @@ import uploadRoutes from "./routes/upload.routes.js";
 import { authenticateJWT, authorizeRoles } from "./middlewares/auth.middleware.js";
 import { globalLimiter } from "./middlewares/rateLimit.js";
 
+/**
+ * ENV gợi ý (Render → Environment):
+ * CORS_ORIGIN = https://librarydigital.netlify.app,https://*.netlify.app,http://localhost:5173
+ */
+
 // 1) Kết nối DB
 await connectDB();
 
@@ -47,32 +52,73 @@ try {
 // ===== App =====
 const app = express();
 
-// ===== Middlewares =====
-const ALLOW_ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map(s => s.trim());
+/* ========================= CORS (TRƯỚC TẤT CẢ) ========================= */
+const RAW_ORIGINS =
+  process.env.CORS_ORIGIN ||
+  "http://localhost:5173,https://librarydigital.netlify.app,https://*.netlify.app";
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // Cho phép origin null (Postman, curl) hoặc nằm trong whitelist
-      if (!origin || ALLOW_ORIGINS.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true, // cần cho cookie refresh token
-  })
-);
+// Chuyển danh sách origin/wildcard thành regex patterns
+const ORIGIN_PATTERNS = RAW_ORIGINS.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((pat) => {
+    const rx =
+      "^" +
+      pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&") // escape regex special chars
+         .replace(/\*/g, ".*") +               // '*' -> '.*'
+      "$";
+    return new RegExp(rx);
+  });
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // curl/Postman/mobile
+  try {
+    const url = new URL(origin);
+    const full = origin;       // scheme + host
+    const host = url.hostname; // chỉ host
+    // 1) Match exact/wildcard từ env
+    if (ORIGIN_PATTERNS.some((rx) => rx.test(full))) return true;
+    // 2) Cho mọi deploy preview Netlify (*.netlify.app)
+    if (/\.netlify\.app$/.test(host)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, cb) {
+    const ok = isAllowedOrigin(origin);
+    cb(ok ? null : new Error(`CORS blocked for origin: ${origin}`), ok);
+  },
+  credentials: true, // cần nếu FE dùng cookie (refreshToken)
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+// CORS phải đứng TRƯỚC mọi middleware/routes khác
+app.use(cors(corsOptions));
+// Bật preflight toàn cục
+app.options("*", cors(corsOptions));
+
+// Cho preflight đi qua trước rate-limit/auth...
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+/* ====================================================================== */
+
+// ===== Middlewares khác =====
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(globalLimiter);
 
-
 // ===== Public / Mobile APIs =====
 app.use("/api/auth", authRoutes);        // /login, /staff/login, /register, /refresh, /logout
-app.use("/api/books", bookRoutes);       // GET list/detail (nếu có POST/PUT/DELETE thì chặn tại router)
+app.use("/api/books", bookRoutes);       // GET list/detail ...
 app.use("/api/categories", categoryRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/users", profileRoutes);    // /me, /profile,...
@@ -88,10 +134,7 @@ app.use(
   dashboardRoutes
 );
 
-// app.use(
-//   "/api/loans",
-//   loansRoutes
-// );
+// app.use("/api/loans", loansRoutes);
 
 // app.use(
 //   "/api/loanBatches",
@@ -114,7 +157,7 @@ app.use(
   publisherRoutes
 );
 
-// Quản trị người dùng chỉ dành cho admin
+// Quản trị người dùng chỉ dành cho admin/librarian
 app.use(
   "/api/admin/users",
   authenticateJWT,
@@ -151,6 +194,10 @@ app.use((req, res) => {
 // ===== Error =====
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
+  // Có thể phân biệt lỗi CORS để trả 403 thay vì 500
+  if (String(err?.message || "").toLowerCase().includes("cors")) {
+    return res.status(403).json({ error: "CORS", message: err.message });
+  }
   res.status(500).json({ error: "Internal Server Error" });
 });
 
