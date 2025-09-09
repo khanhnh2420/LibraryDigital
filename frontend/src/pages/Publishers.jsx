@@ -45,7 +45,7 @@ function UpsertPublisherModal({ open, onClose, init }) {
       onCancel={() => onClose(false)}
       onOk={onSubmit}
       okButtonProps={{ loading: creating || updating }}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>

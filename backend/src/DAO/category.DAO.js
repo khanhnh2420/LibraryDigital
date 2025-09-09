@@ -1,22 +1,18 @@
 // src/DAO/category.DAO.js
 import { getDB } from "../config/db.js";
+import { customAlphabet } from "nanoid";
 
 const COLLECTION = "categories";
+
+// ===== NanoID generator (CAT + [0-9A-Z]) =====
+const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
+function newCategoryId() {
+  return "CAT" + nanoid(); // ví dụ: CAT9ZQ1P7K3A
+}
 
 // Helper: escape regex an toàn
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// Helper: phát sinh ID CAT000001
-async function nextCategoryId(db) {
-  const ret = await db.collection("counters").findOneAndUpdate(
-    { _id: "categoryId" },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
-  const n = ret.value?.seq || 1;
-  return `CAT${String(n).padStart(6, "0")}`;
 }
 
 function normStr(v) {
@@ -28,7 +24,7 @@ function normStr(v) {
 export const CategoryDAO = {
   /**
    * List + tìm kiếm + phân trang (phục vụ dropdown & trang quản trị)
-   * query: { q, limit, page, ids }
+   * query: { q, limit, page, ids, sort, order }
    * Trả: { items, total, page, pageSize }
    */
   async list({ q = "", limit = 10, page = 1, ids = [], sort = "createdAt", order = "desc" } = {}) {
@@ -46,6 +42,10 @@ export const CategoryDAO = {
         { name: { $regex: safe, $options: "i" } },
         { categoryId: { $regex: safe, $options: "i" } },
       ];
+    }
+    // (tùy chọn) lọc theo danh sách ids nếu truyền vào
+    if (Array.isArray(ids) && ids.length > 0) {
+      match.categoryId = { $in: ids.map(String) };
     }
 
     const allowed = new Set(["name", "categoryId", "createdAt", "updatedAt"]);
@@ -89,29 +89,46 @@ export const CategoryDAO = {
     );
   },
 
-  /** Tạo mới category, có thể auto-gen categoryId */
+  /** Tạo mới category: nếu không truyền categoryId -> auto-gen bằng NanoID */
   async create(data = {}) {
     const db = await getDB();
     const col = db.collection(COLLECTION);
 
-    const doc = {
-      categoryId: normStr(data.categoryId) || (await nextCategoryId(db)),
-      name: normStr(data.name),
+    const name = normStr(data.name);
+    if (!name) throw new Error("NAME_REQUIRED");
+
+    const baseDoc = {
+      name,
       description: normStr(data.description),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    if (!doc.name) throw new Error("NAME_REQUIRED");
-
-    // Check trùng categoryId nếu client đưa lên
-    if (data.categoryId) {
-      const dup = await col.findOne({ categoryId: doc.categoryId }, { projection: { _id: 1 } });
+    // Nếu client gửi categoryId thủ công -> tôn trọng nhưng kiểm tra trùng
+    const clientId = normStr(data.categoryId);
+    if (clientId) {
+      const dup = await col.findOne({ categoryId: clientId }, { projection: { _id: 1 } });
       if (dup) throw new Error("CATEGORYID_TAKEN");
+
+      const doc = { categoryId: clientId, ...baseDoc };
+      await col.insertOne(doc);
+      return doc;
     }
 
-    await col.insertOne(doc);
-    return doc; // { categoryId, name, ... }
+    // Tự sinh categoryId ngẫu nhiên + retry nếu hiếm hoi trùng (unique index)
+    for (let i = 0; i < 5; i++) {
+      const categoryId = newCategoryId();
+      const doc = { categoryId, ...baseDoc };
+
+      try {
+        await col.insertOne(doc);
+        return doc;
+      } catch (e) {
+        if (e?.code === 11000) continue; // trùng key -> thử lại
+        throw e;
+      }
+    }
+    throw new Error("ID_GEN_FAILED:: could not generate unique categoryId after retries");
   },
 
   /** Cập nhật category theo categoryId */

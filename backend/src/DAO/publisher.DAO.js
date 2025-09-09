@@ -1,83 +1,108 @@
 // src/DAO/publisher.DAO.js
 import { getDB } from "../config/db.js";
+import { customAlphabet } from "nanoid";
 
 const collection = "publishers";
 const toStr = (v) => (v == null ? null : String(v).trim());
 
-async function nextPublisherId(db) {
-  const ret = await db.collection("counters").findOneAndUpdate(
-    { _id: "publisherId" },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
-  const n = ret.value?.seq ?? 1;
-  return `PUB${String(n).padStart(6, "0")}`;
+// ===== NanoID generator (PUB + [0-9A-Z]) =====
+const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
+function newPublisherId() {
+  return "PUB" + nanoid(); // ví dụ: PUB9ZQ1P7K3A
+}
+
+// escape regex an toàn cho tìm kiếm
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export const PublisherDAO = {
   // Dropdown / list nhẹ — MẶC ĐỊNH: mới nhất
-async list({ q = "", limit = 200, page = 1, ids = [], sort = "createdAt", order = "desc" } = {}) {
-  const db = await getDB();
-  const col = db.collection(collection);
+  async list({ q = "", limit = 200, page = 1, ids = [], sort = "createdAt", order = "desc" } = {}) {
+    const db = await getDB();
+    const col = db.collection(collection);
 
-  const pageN  = Math.max(1, parseInt(page, 10) || 1);
-  const limitN = Math.min(200, Math.max(1, parseInt(limit, 10) || 200));
-  const keyword = toStr(q) || "";
+    const pageN  = Math.max(1, parseInt(page, 10) || 1);
+    const limitN = Math.min(200, Math.max(1, parseInt(limit, 10) || 200));
+    const keyword = toStr(q) || "";
 
-  const match = {};
-  if (Array.isArray(ids) && ids.length > 0) {
-    match.publisherId = { $in: ids.map(String) };
-  } else if (keyword) {
-    match.$or = [
-      { name: { $regex: keyword, $options: "i" } },
-      { publisherId: { $regex: keyword, $options: "i" } },
-    ];
-  }
+    const match = {};
+    if (Array.isArray(ids) && ids.length > 0) {
+      match.publisherId = { $in: ids.map(String) };
+    } else if (keyword) {
+      const safe = escapeRegex(keyword);
+      match.$or = [
+        { name: { $regex: safe, $options: "i" } },
+        { publisherId: { $regex: safe, $options: "i" } },
+      ];
+    }
 
-  const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt"]);
-  const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
-  const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
+    const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt"]);
+    const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
+    const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
 
-  const total = await col.countDocuments(match);
-  const items = await col
-    .find(match, { projection: { _id: 0, publisherId: 1, name: 1, createdAt: 1, updatedAt: 1 } })
-    .sort({ [field]: dir, _id: -1 })
-    .skip((pageN - 1) * limitN)
-    .limit(limitN)
-    .toArray();
+    const total = await col.countDocuments(match);
+    const items = await col
+      .find(match, { projection: { _id: 0, publisherId: 1, name: 1, createdAt: 1, updatedAt: 1 } })
+      .sort({ [field]: dir, _id: -1 })
+      .skip((pageN - 1) * limitN)
+      .limit(limitN)
+      .toArray();
 
-  return { items, total, page: pageN, pageSize: limitN };
-},
+    return { items, total, page: pageN, pageSize: limitN };
+  },
 
-// List phân trang cho admin + bookCount — MẶC ĐỊNH: mới nhất
-async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "desc" } = {}) {
-  const db = await getDB();
-  const col = db.collection(collection);
+  // List phân trang cho admin + bookCount — MẶC ĐỊNH: mới nhất
+  async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "desc" } = {}) {
+    const db = await getDB();
+    const col = db.collection(collection);
 
-  const pageN  = Math.max(1, parseInt(page, 10) || 1);
-  const limitN = Math.max(1, parseInt(pageSize, 10) || 10);
-  const keyword = toStr(q) || "";
+    const pageN  = Math.max(1, parseInt(page, 10) || 1);
+    const limitN = Math.max(1, parseInt(pageSize, 10) || 10);
+    const keyword = toStr(q) || "";
 
-  const match = {};
-  if (keyword) {
-    match.$or = [
-      { name: { $regex: keyword, $options: "i" } },
-      { publisherId: { $regex: keyword, $options: "i" } },
-    ];
-  }
+    const match = {};
+    if (keyword) {
+      const safe = escapeRegex(keyword);
+      match.$or = [
+        { name: { $regex: safe, $options: "i" } },
+        { publisherId: { $regex: safe, $options: "i" } },
+      ];
+    }
 
-  const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt", "bookCount"]);
-  const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
-  const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
+    const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt", "bookCount"]);
+    const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
+    const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
 
-  const total = await col.countDocuments(match);
+    const total = await col.countDocuments(match);
 
-  if (field !== "bookCount") {
+    if (field !== "bookCount") {
+      const items = await col.aggregate([
+        { $match: match },
+        { $sort: { [field]: dir, _id: -1 } },
+        { $skip: (pageN - 1) * limitN },
+        { $limit: limitN },
+        {
+          $lookup: {
+            from: "books",
+            let: { pid: "$publisherId" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$publisherId", "$$pid"] } } },
+              { $count: "c" }
+            ],
+            as: "_cnt"
+          }
+        },
+        { $addFields: { bookCount: { $ifNull: [{ $first: "$_cnt.c" }, 0] } } },
+        { $project: { _id: 0, _cnt: 0 } },
+      ]).toArray();
+
+      return { items, total, page: pageN, pageSize: limitN };
+    }
+
+    // sort theo bookCount
     const items = await col.aggregate([
       { $match: match },
-      { $sort: { [field]: dir, _id: -1 } },
-      { $skip: (pageN - 1) * limitN },
-      { $limit: limitN },
       {
         $lookup: {
           from: "books",
@@ -91,35 +116,13 @@ async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "
       },
       { $addFields: { bookCount: { $ifNull: [{ $first: "$_cnt.c" }, 0] } } },
       { $project: { _id: 0, _cnt: 0 } },
+      { $sort: { bookCount: dir, _id: -1 } },
+      { $skip: (pageN - 1) * limitN },
+      { $limit: limitN },
     ]).toArray();
 
     return { items, total, page: pageN, pageSize: limitN };
-  }
-
-  // sort theo bookCount
-  const items = await col.aggregate([
-    { $match: match },
-    {
-      $lookup: {
-        from: "books",
-        let: { pid: "$publisherId" },
-        pipeline: [
-          { $match: { $expr: { $eq: ["$publisherId", "$$pid"] } } },
-          { $count: "c" }
-        ],
-        as: "_cnt"
-      }
-    },
-    { $addFields: { bookCount: { $ifNull: [{ $first: "$_cnt.c" }, 0] } } },
-    { $project: { _id: 0, _cnt: 0 } },
-    { $sort: { bookCount: dir, _id: -1 } },
-    { $skip: (pageN - 1) * limitN },
-    { $limit: limitN },
-  ]).toArray();
-
-  return { items, total, page: pageN, pageSize: limitN };
-},
-
+  },
 
   async getById(publisherId) {
     const db = await getDB();
@@ -135,8 +138,11 @@ async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "
       throw err;
     }
 
+    // Nếu client gửi publisherId -> dùng; nếu không, tự sinh NanoID
+    const pubId = toStr(data.publisherId) || newPublisherId();
+
     const doc = {
-      publisherId: toStr(data.publisherId) || await nextPublisherId(db),
+      publisherId: pubId,
       name: String(data.name).trim(),
       website: toStr(data.website),
       email: toStr(data.email),
@@ -155,7 +161,7 @@ async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "
   async update(publisherId, payload) {
     const db = await getDB();
     const set = {};
-    for (const k of ["name", "description"]) {
+    for (const k of ["name", "description", "website", "email", "phone", "address", "country", "notes"]) {
       if (k in payload) set[k] = toStr(payload[k]);
     }
     set.updatedAt = new Date();

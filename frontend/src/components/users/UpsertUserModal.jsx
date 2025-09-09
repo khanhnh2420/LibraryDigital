@@ -150,7 +150,6 @@ export default function UpsertUserModal({ open, onClose, init }) {
         form={form}
         layout="vertical"
         colon={false}
-        requiredMark="optional"
       >
         {/* SECTION: Role & ID */}
         <Row gutter={[16, 8]}>
@@ -201,7 +200,7 @@ export default function UpsertUserModal({ open, onClose, init }) {
                 >
                   <Input
                     allowClear
-                    placeholder="VD: 24550022"
+                    placeholder="VD: 24550020"
                     onChange={(e) => {
                       const raw = e.target.value || "";
                       form.setFieldsValue({ idNumber: raw });
@@ -230,9 +229,8 @@ export default function UpsertUserModal({ open, onClose, init }) {
               name="username"
               label="Username"
               rules={[{ required: true, message: "Username is required" }]}
-              extra="Mặc định sẽ = userId (lowercase) khi tạo mới"
             >
-              <Input allowClear placeholder="mặc định = userId (lowercase)" />
+              <Input allowClear placeholder="VD: 24550020" />
             </Form.Item>
           </Col>
 

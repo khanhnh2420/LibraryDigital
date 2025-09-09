@@ -35,7 +35,6 @@ export async function ensureIndexes() {
   );
   // ===== BOOKS =====
   await db.collection("books").createIndex({ bookId: 1 }, { unique: true });
-  await db.collection("books").createIndex({ available: -1 }, { name: "available_-1" });
 
   // Text search: KHÔNG dùng field `language` làm override
   await db.collection("books").createIndex(
@@ -47,13 +46,12 @@ export async function ensureIndexes() {
       language_override: "x_lang"
     }
   );
-
   await db.collection("books").createIndex({ categoryId: 1 });
   await db.collection("books").createIndex({ authorId: 1 });
   await db.collection("books").createIndex({ publisherId: 1 });
+  await db.collection("books").createIndex({ year: 1 });
   await db.collection("books").createIndex({ available: -1 });
   await db.collection("books").createIndex({ isbn: 1 });
-
 
   // ===== AUTHORS  =====
   await db.collection("authors").createIndex({ authorId: 1 }, { unique: true, });

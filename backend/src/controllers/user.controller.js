@@ -174,6 +174,7 @@ export async function createUser(req, res) {
 export async function updateUserAdmin(req, res) {
   try {
     const { userId } = req.params;
+    console.log(userId)
     const updates = req.body || {};
 
     // Giới hạn các trường được phép thay đổi ở admin:

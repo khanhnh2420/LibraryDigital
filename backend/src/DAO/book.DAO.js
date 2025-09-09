@@ -1,7 +1,14 @@
 // src/DAO/book.DAO.js
 import { getDB } from "../config/db.js";
+import { customAlphabet } from "nanoid";
 
 const collectionName = "books";
+
+// ===== NanoID generator (BK + [0-9A-Z]) =====
+const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
+function newBookId() {
+  return "BK" + nanoid(); // ví dụ: BK2Q9M7A3X1
+}
 
 // ===== Common aggregation (join) =====
 const bookAggregation = [
@@ -60,57 +67,7 @@ const bookAggregation = [
   }
 ];
 
-// ===== Helpers =====
-async function nextBookId(db) {
-  const ret = await db.collection("counters").findOneAndUpdate(
-    { _id: "bookId" },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
-  const n = ret.value?.seq || 1;
-  return `BK${String(n).padStart(6, "0")}`;
-}
-
-// Đồng bộ counters.seq >= max số đang có trong books (BKxxxxxx)
-async function ensureCounterAtLeastMax(db) {
-  const r = await db.collection(collectionName).aggregate([
-    { $match: { bookId: { $regex: /^BK\d+$/ } } },
-    {
-      $project: {
-        n: {
-          $toInt: {
-            $regexFind: { input: "$bookId", regex: /\d+$/ }
-          }.match
-        }
-      }
-    },
-    { $group: { _id: null, maxNum: { $max: "$n" } } }
-  ]).toArray();
-
-  const maxNum = (r[0] && r[0].maxNum) || 0;
-
-  await db.collection("counters").updateOne(
-    { _id: "bookId" },
-    { $max: { seq: maxNum } }, // chỉ nâng lên nếu đang thấp hơn
-    { upsert: true }
-  );
-}
-
-// Sinh bookId duy nhất, có retry & fallback sync counters
-async function generateUniqueBookId(db, tries = 5) {
-  for (let i = 0; i < tries; i++) {
-    const id = await nextBookId(db);
-    const exists = await db.collection(collectionName).findOne(
-      { bookId: id },
-      { projection: { _id: 1 } }
-    );
-    if (!exists) return id;
-  }
-  // fallback: sync counters rồi cấp lại một lần
-  await ensureCounterAtLeastMax(db);
-  return await nextBookId(db);
-}
-
+// ===== Small helpers =====
 function toStr(v) {
   return v == null ? null : String(v).trim();
 }
@@ -121,17 +78,47 @@ function normalizeNumber(n) {
   return n == null ? null : Number(n);
 }
 
+// Nhận param có thể là string/array/comma-separated -> trả về mảng id sạch
+function normalizeIdParam(p) {
+  if (p == null) return null;
+  if (Array.isArray(p)) return p.map((s) => String(s).trim()).filter(Boolean);
+  const s = String(p).trim();
+  if (!s) return null;
+  if (s.includes(",")) return s.split(",").map((x) => x.trim()).filter(Boolean);
+  return [s];
+}
+
+// Parse year: ưu tiên year (exact), nếu không có thì dùng yearMin/yearMax (range)
+function parseYearParams(qs) {
+  const exact = Number(qs.year);
+  if (Number.isFinite(exact)) return { exact };
+
+  const min = Number(qs.yearMin);
+  const max = Number(qs.yearMax);
+  const range = {};
+  if (Number.isFinite(min)) range.$gte = min;
+  if (Number.isFinite(max)) range.$lte = max;
+
+  return Object.keys(range).length ? { range } : {};
+}
+
+
 export const BookDAO = {
   // ===== Paged list (for GET /api/books) =====
   async listBooksPaged(qs = {}) {
     const db = await getDB();
     const col = db.collection(collectionName);
 
-    // parse query
+    // parse query cơ bản
     const page = Math.max(1, parseInt(qs.page || "1", 10));
     const pageSize = Math.min(50, Math.max(1, parseInt(qs.pageSize || "12", 10)));
     const q = (qs.q || "").trim();
-    const categoryId = (qs.categoryId || "").trim() || null;
+
+    // các filter
+    const categoryIds = normalizeIdParam(qs.categoryId);
+    const authorIds = normalizeIdParam(qs.authorId);
+    const publisherIds = normalizeIdParam(qs.publisherId);
+    const { exact: yearExact, range: yearRange } = parseYearParams(qs);
 
     const allowedSorts = new Set(["title", "year", "available", "createdAt"]);
     const sortField = allowedSorts.has(String(qs.sort)) ? String(qs.sort) : "createdAt";
@@ -141,14 +128,27 @@ export const BookDAO = {
     const match = {};
     let useText = false;
 
-    if (categoryId) match.categoryId = categoryId;
+    if (categoryIds?.length) {
+      match.categoryId = categoryIds.length === 1 ? categoryIds[0] : { $in: categoryIds };
+    }
+    if (authorIds?.length) {
+      match.authorId = authorIds.length === 1 ? authorIds[0] : { $in: authorIds };
+    }
+    if (publisherIds?.length) {
+      match.publisherId = publisherIds.length === 1 ? publisherIds[0] : { $in: publisherIds };
+    }
+    if (yearExact != null) {
+      match.year = yearExact;
+    } else if (yearRange) {
+      match.year = yearRange; // { $gte, $lte } tùy tham số
+    }
 
     if (q) {
       const qRaw = String(q).trim();
 
-      const mId = /^id\s*:\s*(\S+)$/i.exec(qRaw);    // cho phép "id: BK000123"
-      const mIsbn = /^isbn\s*:\s*(.+)$/i.exec(qRaw);   // cho phép "isbn: 123-456"
-      const looksLikeBookId = /^BK\d{3,}$/i.test(qRaw);
+      const mId = /^id\s*:\s*(\S+)$/i.exec(qRaw);      // "id: BKxxxxx"
+      const mIsbn = /^isbn\s*:\s*(.+)$/i.exec(qRaw);   // "isbn: 123-456"
+      const looksLikeBookId = /^BK(?:\d{3,}|[0-9A-Z]{8,})$/i.test(qRaw);
       const looksLikeIsbn = /^[0-9Xx\s-]{5,}$/.test(qRaw);
 
       if (mId || looksLikeBookId) {
@@ -162,7 +162,6 @@ export const BookDAO = {
         useText = true;
       }
     }
-
 
     // total
     const total = await col.countDocuments(match);
@@ -187,6 +186,7 @@ export const BookDAO = {
 
     return { items, total, page, pageSize };
   },
+
 
   // ===== Existing methods =====
   async getAllBooks() {
@@ -229,10 +229,7 @@ export const BookDAO = {
   async getBookById(bookId) {
     const db = await getDB();
     const docs = await db.collection(collectionName)
-      .aggregate([
-        { $match: { bookId } },
-        ...bookAggregation,
-      ])
+      .aggregate([{ $match: { bookId } }, ...bookAggregation])
       .toArray();
     return docs[0] || null;
   },
@@ -262,63 +259,60 @@ export const BookDAO = {
     const quantity = bookData.quantity != null ? Number(bookData.quantity) : 1;
     let available = bookData.available != null ? Number(bookData.available) : quantity;
 
-
     const safeQty = Number.isFinite(quantity) && quantity >= 0 ? quantity : 1;
     let safeAvail = Number.isFinite(available) && available >= 0 ? available : safeQty;
     if (safeAvail > safeQty) safeAvail = safeQty;
 
-    // KHÔNG nhận bookId từ client để tránh trùng (có thể bật lại nếu cần, nhưng phải check trùng trước)
-    let bookId = await generateUniqueBookId(db);
-
+    // Xác thực FK mềm (khuyến nghị bật để dữ liệu sạch)
     const authorOk = await db.collection("authors").findOne({ authorId: toStr(bookData.authorId) });
     const publisherOk = await db.collection("publishers").findOne({ publisherId: toStr(bookData.publisherId) });
     const categoryOk = await db.collection("categories").findOne({ categoryId: toStr(bookData.categoryId) });
-
     if (!authorOk || !publisherOk || !categoryOk) {
       throw new Error("VALIDATION_ERROR:: authorId/publisherId/categoryId không tồn tại");
     }
 
     const loc = toStr(bookData.location) || "Chưa sắp xếp";
 
-    const doc = {
-      bookId,
-      title: String(bookData.title).trim(),
-      year: toNum(bookData.year),
-      language: toStr(bookData.language),
-      isbn: toStr(bookData.isbn),
+    // Sinh ID ngẫu nhiên + retry nếu hiếm hoi trùng (unique index)
+    for (let i = 0; i < 5; i++) {
+      const bookId = newBookId();
+      const doc = {
+        bookId,
+        title: String(bookData.title).trim(),
+        year: toNum(bookData.year),
+        language: toStr(bookData.language),
+        isbn: toStr(bookData.isbn),
 
-      quantity: safeQty,
-      available: safeAvail,
+        quantity: safeQty,
+        available: safeAvail,
 
-      location: loc,
-      coverImage: toStr(bookData.coverImage),
-      description:
-        bookData.description && String(bookData.description).trim().length > 0
-          ? String(bookData.description).trim()
-          : "Không có mô tả",
+        location: loc,
+        coverImage: toStr(bookData.coverImage),
+        description:
+          bookData.description && String(bookData.description).trim().length > 0
+            ? String(bookData.description).trim()
+            : "Không có mô tả",
 
-      authorId: toStr(bookData.authorId),
-      publisherId: toStr(bookData.publisherId),
-      categoryId: toStr(bookData.categoryId),
+        authorId: toStr(bookData.authorId),
+        publisherId: toStr(bookData.publisherId),
+        categoryId: toStr(bookData.categoryId),
 
-      createdAt: bookData.createdAt ? new Date(bookData.createdAt) : now,
-      updatedAt: now
-    };
+        createdAt: bookData.createdAt ? new Date(bookData.createdAt) : now,
+        updatedAt: now
+      };
 
-    try {
-      await col.insertOne(doc);
-      return doc;
-    } catch (e) {
-      // Nếu vừa khởi động counters thấp hơn & gây trùng -> sync rồi thử lại 1 lần
-      if (e?.code === 11000 && e?.keyPattern?.bookId) {
-        await ensureCounterAtLeastMax(db);
-        bookId = await generateUniqueBookId(db);
-        doc.bookId = bookId;
+      try {
         await col.insertOne(doc);
         return doc;
+      } catch (e) {
+        if (e?.code === 11000 && e?.keyPattern?.bookId) {
+          // trùng ID -> thử lại
+          continue;
+        }
+        throw e;
       }
-      throw e;
     }
+    throw new Error("ID_GEN_FAILED:: could not generate unique bookId after retries");
   },
 
   async updateBook(bookId, updateData) {
@@ -329,15 +323,37 @@ export const BookDAO = {
     if ("quantity" in payload && payload.quantity != null) payload.quantity = Number(payload.quantity);
     if ("available" in payload && payload.available != null) payload.available = Number(payload.available);
 
-    // đảm bảo available không vượt quantity nếu cả 2 cùng có
+    const now = new Date();
+
+    // Nếu chỉ đổi quantity, clamp available hiện tại xuống nếu cần
+    if (typeof payload.quantity === "number" && !("available" in payload)) {
+      const cur = await db.collection(collectionName).findOne(
+        { bookId },
+        { projection: { available: 1 } }
+      );
+      if (cur && typeof cur.available === "number" && cur.available > payload.quantity) {
+        payload.available = payload.quantity;
+      }
+    }
+
+    // Nếu có cả 2: clamp như cũ
     if (typeof payload.quantity === "number" && typeof payload.available === "number") {
       if (payload.available > payload.quantity) payload.available = payload.quantity;
       if (payload.available < 0) payload.available = 0;
     }
 
+    // Nếu đổi authorId/publisherId/categoryId: xác thực tồn tại
+    for (const [coll, key] of [["authors", "authorId"], ["publishers", "publisherId"], ["categories", "categoryId"]]) {
+      if (key in payload && payload[key] != null) {
+        const ok = await db.collection(coll).findOne({ [key]: toStr(payload[key]) });
+        if (!ok) throw new Error(`VALIDATION_ERROR:: ${key} không tồn tại`);
+        payload[key] = toStr(payload[key]);
+      }
+    }
+
     const result = await db
       .collection(collectionName)
-      .updateOne({ bookId }, { $set: { ...payload, updatedAt: new Date() } });
+      .updateOne({ bookId }, { $set: { ...payload, updatedAt: now } });
 
     return result;
   },
@@ -423,7 +439,7 @@ export const BookDAO = {
 
   async decAvailableIfPossible(bookId, session) {
     const db = await getDB();
-    const res = await db.collection(BOOKS).findOneAndUpdate(
+    const res = await db.collection(collectionName).findOneAndUpdate(
       { bookId, available: { $gte: 1 } },
       { $inc: { available: -1 } },
       { session, returnDocument: "after" }
@@ -433,11 +449,13 @@ export const BookDAO = {
 
   async incAvailable(bookId, session) {
     const db = await getDB();
-    await db.collection(BOOKS).updateOne(
-      { bookId },
+    // Không tăng vượt quantity
+    const res = await db.collection(collectionName).findOneAndUpdate(
+      { bookId, $expr: { $lt: ["$available", "$quantity"] } },
       { $inc: { available: 1 } },
-      { session }
+      { session, returnDocument: "after" }
     );
+    return !!res.value;
   },
 
   validateBookData(bookData) {

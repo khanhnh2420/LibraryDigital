@@ -2,21 +2,24 @@ import { useMemo, useState, useEffect } from "react";
 import {
   Button,
   Input,
-  Modal,
   Form,
   Space,
   Table,
   Typography,
   Popconfirm,
   message,
-  Upload,
   Select,
+  InputNumber,
 } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import { useListBooksQuery, useDeleteBookMutation } from "@/services/booksApi";
-import { useListCategoriesQuery } from "@/services/refDataApi";
+import {
+  useListCategoriesQuery,
+  useListAuthorsQuery,
+  useListPublishersQuery,
+} from "@/services/refDataApi";
 
 import AddBookModal from "@/components/books/AddBookModal";
 
@@ -44,15 +47,28 @@ export default function Books() {
     return () => clearTimeout(t);
   }, [qInput]);
 
+  // Filters
   const [categoryId, setCategoryId] = useState();
-  const { data: cats } = useListCategoriesQuery({ limit: 200, q: "" });
+  const [authorId, setAuthorId] = useState();
+  const [publisherId, setPublisherId] = useState();
+  const [year, setYear] = useState();
 
+  // Ref data
+  const { data: cats } = useListCategoriesQuery({ limit: 200, q: "" });
+  const { data: authors } = useListAuthorsQuery({ limit: 200, q: "" });
+  const { data: pubs } = useListPublishersQuery({ limit: 200, q: "" });
+
+  // List books with filters
   const { data, isFetching, refetch } = useListBooksQuery({
     page,
     pageSize,
     q,
     categoryId,
+    authorId,
+    publisherId,
+    year,
   });
+
   const [deleteBook] = useDeleteBookMutation();
 
   const columns = useMemo(
@@ -72,6 +88,12 @@ export default function Books() {
         key: "author",
         render: (_, r) =>
           (r.author && r.author.name) || r.authorName || "-",
+      },
+      {
+        title: "Publisher",
+        key: "publisher",
+        render: (_, r) =>
+          (r.publisher && r.publisher.name) || r.publisherName || "-",
       },
       { title: "Year", dataIndex: "year", key: "year", width: 80 },
       { title: "ISBN", dataIndex: "isbn", key: "isbn", width: 140 },
@@ -103,6 +125,14 @@ export default function Books() {
     [navigate, deleteBook, refetch]
   );
 
+  const clearAllFilters = () => {
+    setCategoryId(undefined);
+    setAuthorId(undefined);
+    setPublisherId(undefined);
+    setYear(undefined);
+    setPage(1);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -110,7 +140,8 @@ export default function Books() {
           Books
         </Typography.Title>
         <Space direction="vertical" size={4} align="end">
-          <Space>
+          <Space wrap>
+            {/* Category */}
             <Select
               allowClear
               placeholder="Category"
@@ -125,10 +156,59 @@ export default function Books() {
                 setPage(1);
               }}
             />
+
+            {/* Author */}
+            <Select
+              allowClear
+              showSearch
+              placeholder="Author"
+              style={{ width: 220 }}
+              optionFilterProp="label"
+              options={(authors?.items ?? []).map((a) => ({
+                value: a.authorId,
+                label: a.name,
+              }))}
+              value={authorId}
+              onChange={(v) => {
+                setAuthorId(v);
+                setPage(1);
+              }}
+            />
+
+            {/* Publisher */}
+            <Select
+              allowClear
+              showSearch
+              placeholder="Publisher"
+              style={{ width: 220 }}
+              optionFilterProp="label"
+              options={(pubs?.items ?? []).map((p) => ({
+                value: p.publisherId,
+                label: p.name,
+              }))}
+              value={publisherId}
+              onChange={(v) => {
+                setPublisherId(v);
+                setPage(1);
+              }}
+            />
+
+            {/* Year */}
+            <InputNumber
+              placeholder="Year"
+              style={{ width: 120 }}
+              value={year}
+              min={0}
+              onChange={(v) => {
+                setYear(v ?? undefined);
+                setPage(1);
+              }}
+            />
+
             <Input.Search
               value={qInput}
               allowClear
-              placeholder="Search title / description / ISBN …  (tips: id:BK000123, isbn:7109...)"
+              placeholder="Search title / description / ISBN …  (tips: id:BK..., isbn:...)"
               onChange={(e) => setQInput(e.target.value)}
               onSearch={(v) => {
                 setQ(v.trim());
@@ -136,6 +216,13 @@ export default function Books() {
               }} // Enter/click tìm ngay (bỏ debounce)
               style={{ width: 360 }}
             />
+
+            <Button
+              onClick={clearAllFilters}
+            >
+              Clear filters
+            </Button>
+
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -152,8 +239,9 @@ export default function Books() {
             </Button>
           </Space>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Mẹo: <code>id:BK000123</code> tìm theo Book ID ·{" "}
-            <code>isbn:7109441176351</code> hoặc chỉ gõ số ISBN
+            Mẹo: <code>id:BKxxxxx</code> tìm theo Book ID ·{" "}
+            <code>isbn:7109441176351</code> hoặc chỉ gõ số ISBN ·
+            có thể lọc theo Category / Author / Publisher / Year
           </Typography.Text>
         </Space>
       </div>

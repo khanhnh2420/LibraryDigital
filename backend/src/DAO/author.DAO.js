@@ -1,20 +1,16 @@
 // src/DAO/author.DAO.js
 import { getDB } from "../config/db.js";
 import { escapeRegex } from "../utils/regex.js";
+import { customAlphabet } from "nanoid";
 
 const COLLECTION = "authors";
 const toStr = (v) => (v == null ? null : String(v).trim());
 const toBool = (v) => (v === false ? false : true);
 
-/** Sinh mã authorId: AUTH000001, AUTH000002, ... */
-async function nextAuthorId(db) {
-  const ret = await db.collection("counters").findOneAndUpdate(
-    { _id: "authorId" },
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
-  );
-  const n = ret.value?.seq || 1;
-  return `AUTH${String(n).padStart(6, "0")}`;
+// ===== NanoID generator (AUTH + [0-9A-Z]) =====
+const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
+function newAuthorId() {
+  return "AUTH" + nanoid(); // ví dụ: AUTH9ZQ1P7K3A
 }
 
 export const AuthorDAO = {
@@ -52,7 +48,7 @@ export const AuthorDAO = {
           _id: 0,
           authorId: 1,
           name: 1,
-          description: 1,    // dùng description thay bio
+          description: 1,
           website: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -170,9 +166,10 @@ export const AuthorDAO = {
       throw err;
     }
 
-    const authorId = toStr(data.authorId) || (await nextAuthorId(db));
+    // Nếu client gửi authorId -> dùng, ngược lại tự sinh NanoID
+    const authorId = toStr(data.authorId) || newAuthorId();
 
-    // check trùng
+    // check trùng theo authorId hoặc name
     const dup = await col.findOne({ $or: [{ authorId }, { name }] }, { projection: { _id: 1 } });
     if (dup) {
       const err = new Error("AUTHOR_DUPLICATED");
@@ -184,7 +181,7 @@ export const AuthorDAO = {
     const doc = {
       authorId,
       name,
-      description: toStr(data.description) || "Không có mô tả", // đổi sang description
+      description: toStr(data.description) || "Không có mô tả",
       website: toStr(data.website),
       createdAt: now,
       updatedAt: now,
@@ -199,7 +196,7 @@ export const AuthorDAO = {
     const db = await getDB();
     const set = {};
     if ("name" in payload) set.name = toStr(payload.name);
-    if ("description" in payload) set.description = toStr(payload.description); // cập nhật description
+    if ("description" in payload) set.description = toStr(payload.description);
     if ("website" in payload) set.website = toStr(payload.website);
     if ("isActive" in payload) set.isActive = toBool(payload.isActive);
     set.updatedAt = new Date();
