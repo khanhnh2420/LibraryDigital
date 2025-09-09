@@ -4,7 +4,7 @@ export async function listBatches(req, res) {
   const db = await getDB();
   const page = Math.max(1, parseInt(req.query.page || "1", 10));
   const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize || "20", 10)));
-  const match = {}; // có thể thêm filter status nếu cần: ?status=ChoNhan
+  const match = {};
 
   if (req.query.status) match.status = req.query.status;
 

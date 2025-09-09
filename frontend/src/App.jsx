@@ -19,7 +19,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      <Route element={<ProtectedRoute roles={['admin','librarian']} />}>
+      <Route element={<ProtectedRoute roles={['admin', 'librarian']} />}>
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="books" element={<Books />} />
@@ -28,7 +28,7 @@ export default function App() {
           <Route path="categories" element={<Categories />} />
           <Route path="authors" element={<Authors />} />
           <Route path="/publishers" element={<Publishers />} />
-          <Route path="loans" element={<Loans />} />
+          <Route path="/loans" element={<Loans />} />
           <Route path="users" element={<Users />} />
         </Route>
       </Route>

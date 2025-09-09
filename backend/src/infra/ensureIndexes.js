@@ -8,30 +8,15 @@ import { getDB } from "../config/db.js";
 export async function ensureIndexes() {
   const db = getDB();
 
-  // ===== LOANS =====
-  // Truy vấn + sort
-  await db.collection("loans").createIndex({ createdAt: -1 });
-  await db.collection("loans").createIndex({ status: 1 });
-  await db.collection("loans").createIndex({ userId: 1 });
-  await db.collection("loans").createIndex({ bookId: 1 });
-  await db.collection("loans").createIndex({ dueDate: 1 });
-  await db.collection("loans").createIndex({ batchId: 1 });
+  // // LOANS
+  // await db.collection("loans").createIndex({ batchId: 1, status: 1 }, { name: "loans_batch_status" });
+  // await db.collection("loans").createIndex({ userId: 1, createdAt: -1 }, { name: "loans_user_createdAt" });
+  // await db.collection("loans").createIndex({ bookId: 1, status: 1 }, { name: "loans_book_status" });
 
-  // Ngăn 1 user mượn trùng 1 sách khi còn active (ChoNhan|DangMuon|QuaHan)
-  await db.collection("loans").createIndex(
-    { userId: 1, bookId: 1, status: 1 },
-    {
-      unique: true,
-      partialFilterExpression: { status: { $in: ["ChoNhan", "DangMuon", "QuaHan"] } }
-    }
-  );
+  // // LOAN BATCHES
+  // await db.collection("loanBatches").createIndex({ status: 1, expiresAt: 1 }, { name: "batches_status_expiresAt" });
+  // await db.collection("loanBatches").createIndex({ userId: 1, createdAt: -1 }, { name: "batches_user_createdAt" });
 
-  // ===== LOAN BATCHES =====
-  await db.collection("loanBatches").createIndex({ userId: 1, status: 1 });
-  await db.collection("loanBatches").createIndex({ expiresAt: 1, status: 1 }); // phục vụ auto-expire job
-  // Hash của QR & short code: nên unique + sparse (nếu không set hash cũng không sao)
-  await db.collection("loanBatches").createIndex({ qrTokenHash: 1 }, { unique: true, sparse: true });
-  await db.collection("loanBatches").createIndex({ shortCodeHash: 1 }, { unique: true, sparse: true });
 
   // ===== USERS =====
   await db.collection("users").createIndex({ userId: 1 }, { unique: true });
@@ -50,6 +35,7 @@ export async function ensureIndexes() {
   );
   // ===== BOOKS =====
   await db.collection("books").createIndex({ bookId: 1 }, { unique: true });
+  await db.collection("books").createIndex({ available: -1 }, { name: "available_-1" });
 
   // Text search: KHÔNG dùng field `language` làm override
   await db.collection("books").createIndex(

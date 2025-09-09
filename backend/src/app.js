@@ -5,11 +5,11 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 
-
 dotenv.config();
 
 import { connectDB } from "./config/db.js";
 import { ensureIndexes } from "./infra/ensureIndexes.js";
+import { expireHolds } from "./jobs/expireHolds.job.js";
 
 // Routes common/mobile
 import authRoutes from "./routes/auth.routes.js";
@@ -20,8 +20,8 @@ import profileRoutes from "./routes/profile.routes.js";
 
 // Routes Admin
 import dashboardRoutes from "./routes/dashboard.routes.js";
-import loansRoutes from "./routes/loans.routes.js";
-import batchesRoutes from "./routes/batches.routes.js";
+// import loansRoutes from "./routes/loans.routes.js";
+// import batchesRoutes from "./routes/batches.routes.js";
 import authorRoutes from "./routes/author.routes.js";
 import publisherRoutes from "./routes/publisher.routes.js";
 import userAdminRoutes from "./routes/user.admin.routes.js";
@@ -30,6 +30,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 
 // Middlewares
 import { authenticateJWT, authorizeRoles } from "./middlewares/auth.middleware.js";
+import { globalLimiter } from "./middlewares/rateLimit.js";
 
 // 1) Kết nối DB
 await connectDB();
@@ -40,6 +41,8 @@ try {
 } catch (err) {
   console.error("❌ Ensure indexes failed:", err);
 }
+
+expireHolds();
 
 // ===== App =====
 const app = express();
@@ -64,12 +67,13 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
+app.use(globalLimiter);
 
 
 // ===== Public / Mobile APIs =====
 app.use("/api/auth", authRoutes);        // /login, /staff/login, /register, /refresh, /logout
 app.use("/api/books", bookRoutes);       // GET list/detail (nếu có POST/PUT/DELETE thì chặn tại router)
-app.use("/api/categories", categoryRoutes); // CHỈ mount 1 lần
+app.use("/api/categories", categoryRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/users", profileRoutes);    // /me, /profile,...
 
@@ -84,19 +88,17 @@ app.use(
   dashboardRoutes
 );
 
-app.use(
-  "/api/loans",
-  authenticateJWT,
-  authorizeRoles("admin", "librarian"),
-  loansRoutes
-);
+// app.use(
+//   "/api/loans",
+//   loansRoutes
+// );
 
-app.use(
-  "/api/loanBatches",
-  authenticateJWT,
-  authorizeRoles("admin", "librarian"),
-  batchesRoutes
-);
+// app.use(
+//   "/api/loanBatches",
+//   authenticateJWT,
+//   authorizeRoles("admin", "librarian"),
+//   batchesRoutes
+// );
 
 app.use(
   "/api/authors",

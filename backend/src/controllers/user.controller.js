@@ -79,7 +79,7 @@ export async function updateProfile(req, res) {
       if (filtered.year !== undefined) upd.year = toIntOrNull(filtered.year);
     }
 
-    // basic validate
+    //  validate
     if (upd.name !== undefined && !upd.name) {
       return res.status(400).json({ message: "Họ và tên không được để trống" });
     }
@@ -244,7 +244,7 @@ export async function deleteUser(req, res) {
   try {
     const { userId } = req.params;
 
-    // (Tuỳ chọn) kiểm tra ràng buộc: nếu có loans đang active → không xoá
+    // kiểm tra ràng buộc: nếu có loans đang active → không xoá
     // const db = await getDB();
     // const activeLoans = await db.collection("loans").countDocuments({ userId, status: { $in: ["DangMuon", "ChoNhan"] } });
     // if (activeLoans > 0) return res.status(409).json({ message: "Không thể xoá: user đang có phiếu mượn hoạt động" });

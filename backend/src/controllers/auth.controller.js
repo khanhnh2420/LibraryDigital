@@ -8,7 +8,7 @@ dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev_refresh_secret";
 
-// staff có quyền vào FE admin
+// librarian có quyền vào FE admin
 const STAFF_ROLES = new Set(["admin", "librarian"]);
 
 // ----- helpers -----

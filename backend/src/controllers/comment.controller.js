@@ -48,7 +48,7 @@ export const CommentController = {
     }
   },
 
-  // (Tuỳ chọn) chỉ threads — không kèm replies (vẫn hydrate user, ẩn userId)
+  // chỉ threads — không kèm replies (vẫn hydrate user, ẩn userId)
   async listThreads(req, res) {
     try {
       const { bookId } = req.params;

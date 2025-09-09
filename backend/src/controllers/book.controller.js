@@ -1,5 +1,5 @@
 // src/controllers/book.controller.js
-import { BookModel } from "../DAO/book.DAO.js";
+import { BookDAO } from "../DAO/book.DAO.js";
 import { derivePublicIdFromUrl } from "../utils/cloudinaryTools.js";
 import { deleteCloudinaryByPublicId } from "../utils/cloudinaryDelete.js";
 
@@ -8,7 +8,7 @@ export const BookController = {
     // GET /api/books?page=1&pageSize=12&q=python&categoryId=CAT001&sort=createdAt&order=desc
     listPaged: async (req, res) => {
         try {
-            const result = await BookModel.listBooksPaged(req.query);
+            const result = await BookDAO.listBooksPaged(req.query);
             return res.status(200).json(result); // { items, total, page, pageSize }
         } catch (err) {
             console.error("❌ Lỗi listPaged:", err);
@@ -19,7 +19,7 @@ export const BookController = {
     // Lấy tất cả sách
     getAllBooks: async (req, res) => {
         try {
-            const books = await BookModel.getAllBooks();
+            const books = await BookDAO.getAllBooks();
             return res.status(200).json(books);
         } catch (err) {
             console.error("❌ Lỗi getAllBooks:", err);
@@ -30,7 +30,7 @@ export const BookController = {
     // Lấy 100 Book
     get100Books: async (req, res) => {
         try {
-            const books = await BookModel.get100Books();
+            const books = await BookDAO.get100Books();
             return res.status(200).json(books);
         } catch (err) {
             console.error("❌ Lỗi getRandomBooks:", err);
@@ -41,7 +41,7 @@ export const BookController = {
     // Lấy 500 Book
     get500Books: async (req, res) => {
         try {
-            const books = await BookModel.get500Books();
+            const books = await BookDAO.get500Books();
             return res.status(200).json(books);
         } catch (err) {
             console.error("❌ Lỗi get500Books:", err);
@@ -53,7 +53,7 @@ export const BookController = {
     getBookById: async (req, res) => {
         try {
             const { bookId } = req.params;
-            const book = await BookModel.getBookById(bookId);
+            const book = await BookDAO.getBookById(bookId);
 
             if (!book) {
                 return res.status(404).json({ message: "Không tìm thấy sách" });
@@ -70,7 +70,7 @@ export const BookController = {
     getBookByISBN: async (req, res) => {
         try {
             const { isbn } = req.params;
-            const book = await BookModel.getBookByISBN(isbn);
+            const book = await BookDAO.getBookByISBN(isbn);
 
             if (!book) {
                 return res.status(404).json({ message: "Không tìm thấy sách với ISBN này" });
@@ -87,7 +87,7 @@ export const BookController = {
     getBooksByCategory: async (req, res) => {
         try {
             const { categoryId } = req.params;
-            const books = await BookModel.getBooksByCategory(categoryId);
+            const books = await BookDAO.getBooksByCategory(categoryId);
 
             return res.status(200).json(books);
         } catch (err) {
@@ -100,7 +100,7 @@ export const BookController = {
     getBooksByAuthor: async (req, res) => {
         try {
             const { authorId } = req.params;
-            const books = await BookModel.getBooksByAuthor(authorId);
+            const books = await BookDAO.getBooksByAuthor(authorId);
 
             return res.status(200).json(books);
         } catch (err) {
@@ -113,7 +113,7 @@ export const BookController = {
     searchBooks: async (req, res) => {
         try {
             const { searchTerm } = req.params;
-            const books = await BookModel.searchBooks(searchTerm);
+            const books = await BookDAO.searchBooks(searchTerm);
 
             return res.status(200).json(books);
         } catch (err) {
@@ -125,7 +125,7 @@ export const BookController = {
     // Lấy sách available
     getAvailableBooks: async (req, res) => {
         try {
-            const books = await BookModel.getAvailableBooks();
+            const books = await BookDAO.getAvailableBooks();
 
             return res.status(200).json(books);
         } catch (err) {
@@ -137,7 +137,7 @@ export const BookController = {
     // Lấy sách với đầy đủ thông tin (có join)
     getBooksWithDetails: async (req, res) => {
         try {
-            const books = await BookModel.getBooksWithDetails();
+            const books = await BookDAO.getBooksWithDetails();
 
             return res.status(200).json(books);
         } catch (err) {
@@ -152,7 +152,7 @@ export const BookController = {
             const bookData = req.body;
 
             // Validate dữ liệu
-            const validation = BookModel.validateBookData(bookData);
+            const validation = BookDAO.validateBookData(bookData);
             if (!validation.isValid) {
                 return res.status(400).json({
                     message: "Dữ liệu không hợp lệ",
@@ -160,7 +160,7 @@ export const BookController = {
                 });
             }
 
-            const result = await BookModel.createBook(bookData);
+            const result = await BookDAO.createBook(bookData);
 
             return res.status(201).json({
                 message: "Thêm sách thành công",
@@ -178,14 +178,14 @@ export const BookController = {
             const { bookId } = req.params;
             const updateData = req.body;
 
-            const current = await BookModel.getBookById(bookId);
+            const current = await BookDAO.getBookById(bookId);
             if (!current) return res.status(404).json({ message: "Không tìm thấy sách" });
 
             // Nếu coverImage đổi sang URL khác → xóa ảnh cũ
             const oldUrl = current.coverImage;
             const newUrl = updateData.coverImage;
 
-            const result = await BookModel.updateBook(bookId, updateData);
+            const result = await BookDAO.updateBook(bookId, updateData);
 
             // Xóa sau khi DB đã cập nhật thành công (tránh treo update)
             if (newUrl && oldUrl && oldUrl !== newUrl) {
@@ -207,10 +207,10 @@ export const BookController = {
     remove: async (req, res) => {
         try {
             const { bookId } = req.params;
-            const current = await BookModel.getBookById(bookId);
+            const current = await BookDAO.getBookById(bookId);
             if (!current) return res.status(404).json({ message: "Không tìm thấy sách" });
 
-            const r = await BookModel.deleteBook(bookId);
+            const r = await BookDAO.deleteBook(bookId);
 
             // Sau khi xóa DB → xóa ảnh trên cloud (best-effort)
             if (current.coverImage) {

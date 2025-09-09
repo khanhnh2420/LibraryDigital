@@ -48,7 +48,6 @@ function UpsertCategoryModal({ open, onClose, init }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        {/* Nếu BE tự sinh categoryId, để trống/disabled khi tạo mới */}
         <Form.Item name="categoryId" label="Category ID">
           <Input placeholder="CAT001" disabled={isEdit} />
         </Form.Item>

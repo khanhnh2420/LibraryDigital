@@ -1,5 +1,10 @@
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller.js";
+import {
+  loginLimiter,
+  loginSpeedLimiter,
+  refreshLimiter,
+} from "../middlewares/rateLimit.js";
 
 const router = Router();
 
@@ -7,9 +12,9 @@ const router = Router();
 router.post("/staff/login", AuthController.staffLogin);
 
 // client/mobile/web chung
-router.post("/login", AuthController.login);
+router.post("/login", loginSpeedLimiter, loginLimiter, AuthController.login);
 router.post("/register", AuthController.registerUser);
 router.post("/logout", AuthController.logout);
-router.post("/refresh", AuthController.refreshAccessToken);
+router.post("/refresh", refreshLimiter, AuthController.refreshAccessToken);
 
 export default router;

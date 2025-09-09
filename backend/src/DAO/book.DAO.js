@@ -1,4 +1,4 @@
-// src/models/book.DAO.js
+// src/DAO/book.DAO.js
 import { getDB } from "../config/db.js";
 
 const collectionName = "books";
@@ -121,7 +121,7 @@ function normalizeNumber(n) {
   return n == null ? null : Number(n);
 }
 
-export const BookModel = {
+export const BookDAO = {
   // ===== Paged list (for GET /api/books) =====
   async listBooksPaged(qs = {}) {
     const db = await getDB();
@@ -153,7 +153,7 @@ export const BookModel = {
 
       if (mId || looksLikeBookId) {
         const id = (mId ? mId[1] : qRaw).toUpperCase();
-        match.bookId = id;                              
+        match.bookId = id;
       } else if (mIsbn || looksLikeIsbn) {
         const isbn = (mIsbn ? mIsbn[1] : qRaw).trim();
         match.isbn = isbn;
@@ -419,6 +419,25 @@ export const BookModel = {
     const db = await getDB();
     const count = await db.collection(collectionName).countDocuments({ bookId });
     return count > 0;
+  },
+
+  async decAvailableIfPossible(bookId, session) {
+    const db = await getDB();
+    const res = await db.collection(BOOKS).findOneAndUpdate(
+      { bookId, available: { $gte: 1 } },
+      { $inc: { available: -1 } },
+      { session, returnDocument: "after" }
+    );
+    return !!res.value; // true nếu trừ thành công
+  },
+
+  async incAvailable(bookId, session) {
+    const db = await getDB();
+    await db.collection(BOOKS).updateOne(
+      { bookId },
+      { $inc: { available: 1 } },
+      { session }
+    );
   },
 
   validateBookData(bookData) {

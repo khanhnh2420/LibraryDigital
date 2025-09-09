@@ -18,13 +18,13 @@ router.get("/", CategoryController.list);
 // // Lấy popular categories
 // router.get("/popular/:limit?", CategoryController.getPopularCategories);
 
-// // Tạo category mới
-// router.post("/", CategoryController.create);
+// Tạo category mới
+router.post("/", CategoryController.create);
 
-// // Cập nhật category
-// router.put("/:categoryId", CategoryController.update);
+// Cập nhật category
+router.put("/:categoryId", CategoryController.update);
 
-// // Xóa category
-// router.delete("/:categoryId", CategoryController.remove);
+// Xóa category
+router.delete("/:categoryId", CategoryController.remove);
 
 export default router;

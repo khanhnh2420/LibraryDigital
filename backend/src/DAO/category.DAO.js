@@ -44,7 +44,6 @@ export const CategoryDAO = {
     const match = {};
 
     if (keyword) {
-      // ưu tiên regex nhẹ — nếu muốn tối ưu hơn có thể dùng $text (đã tạo index text)
       match.$or = [
         { name: { $regex: keyword, $options: "i" } },
         { categoryId: { $regex: keyword, $options: "i" } }

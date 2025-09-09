@@ -165,7 +165,7 @@ export default function Users() {
           >
             {r.status === "active" ? "Ban" : "Unban"}
           </Button>
-          <Button
+          {/* <Button
             size="small"
             onClick={async () => {
               try {
@@ -177,7 +177,7 @@ export default function Users() {
             }}
           >
             Reset Password
-          </Button>
+          </Button> */}
           <Popconfirm
             title="Delete this user?"
             description={`User: ${r.name} (${r.userId})`}
