@@ -73,7 +73,7 @@ export default function AddBookModal({ open, onClose, onCreated }) {
       onOk={handleOk}
       onCancel={handleCancel}
       okButtonProps={{ loading: isLoading }}
-      destroyOnClose
+      destroyOnHidden
       width={760}
     >
       <Form

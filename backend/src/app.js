@@ -65,7 +65,7 @@ const ORIGIN_PATTERNS = RAW_ORIGINS.split(",")
     const rx =
       "^" +
       pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&") // escape regex special chars
-         .replace(/\*/g, ".*") +               // '*' -> '.*'
+        .replace(/\*/g, ".*") +               // '*' -> '.*'
       "$";
     return new RegExp(rx);
   });
@@ -93,7 +93,7 @@ const corsOptions = {
   },
   credentials: true, // cần nếu FE dùng cookie (refreshToken)
   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   optionsSuccessStatus: 204,
 };
 

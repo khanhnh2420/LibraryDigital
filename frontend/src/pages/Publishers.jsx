@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { App as AntdApp, Button, Input, Modal, Form, Space, Table, Typography, Popconfirm } from "antd";
+import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   useListPublishersPagedQuery,
   useCreatePublisherMutation,
@@ -127,8 +128,11 @@ export default function Publishers() {
             onSearch={(v) => { setQ(v.trim()); setPage(1); }}
             style={{ width: 340 }}
           />
-          <Button type="primary" onClick={() => { setEditing(null); setOpen(true); }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setOpen(true); }}>
             Add Publisher
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
+            Refresh
           </Button>
         </Space>
       </div>

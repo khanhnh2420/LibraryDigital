@@ -1,8 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { App as AntdApp, Modal, Form, Input, Select, Button, Space } from "antd";
+import { useEffect, useMemo } from "react";
+import {
+  App as AntdApp,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Button,
+  Space,
+  Row,
+  Col,
+  Divider,
+  Tooltip,
+} from "antd";
+import {
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import {
   useCreateUserMutation,
-  useUpdateUserMutation
+  useUpdateUserMutation,
 } from "@/services/usersApi";
 
 const ROLE_OPTIONS = [
@@ -19,13 +35,6 @@ function rolePrefix(role) {
   return "SV";
 }
 
-function genPassword(len = 10) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#";
-  let s = "";
-  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
-
 export default function UpsertUserModal({ open, onClose, init }) {
   const isEdit = !!init?.userId;
   const { message } = AntdApp.useApp();
@@ -34,17 +43,15 @@ export default function UpsertUserModal({ open, onClose, init }) {
   const [createUser, { isLoading: creating }] = useCreateUserMutation();
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation();
 
-  // để biết có auto-gen password hay không (để hiển thị sau khi tạo)
-  const autoPwdRef = useRef(null);
-
-  // Khi mở modal, set default
+  // Prefill / reset
   useEffect(() => {
     if (open) {
       if (isEdit) {
         form.setFieldsValue({
           ...init,
-          // tách idNumber từ userId nếu muốn hiển thị (bỏ phần prefix chữ)
-          idNumber: init.userId ? String(init.userId).replace(/^\D+/g, "") : ""
+          idNumber: init.userId
+            ? String(init.userId).replace(/^\D+/g, "")
+            : "",
         });
       } else {
         form.setFieldsValue({
@@ -54,21 +61,20 @@ export default function UpsertUserModal({ open, onClose, init }) {
           idNumber: "",
           userId: "",
           username: "",
-          password: ""
+          password: "",
         });
       }
     } else {
       form.resetFields();
-      autoPwdRef.current = null;
     }
   }, [open, isEdit, init, form]);
 
-  // Theo dõi role + idNumber để tính userId & mặc định username
+  // Watch fields
   const role = Form.useWatch("role", form);
   const idNumber = Form.useWatch("idNumber", form);
 
   useEffect(() => {
-    if (isEdit) return; // không động vào khi edit
+    if (isEdit) return;
 
     const prefix = rolePrefix(role);
     const digits = String(idNumber || "").replace(/\D+/g, "");
@@ -77,27 +83,25 @@ export default function UpsertUserModal({ open, onClose, init }) {
 
     form.setFieldsValue({
       userId,
-      // nếu username đang rỗng hoặc đang đúng bằng lower(userId) trước đó thì cập nhật
-      username: !currentUsername || currentUsername === currentUsername.toLowerCase()
-        ? (userId ? userId.toLowerCase() : "")
-        : currentUsername
+      username:
+        !currentUsername || currentUsername === currentUsername.toLowerCase()
+          ? userId?.toLowerCase() || ""
+          : currentUsername,
+      borrowLimit: role === "student" ? 5 : 10,
     });
-
-    // set default borrowLimit theo role khi tạo mới
-    const bl = role === "student" ? 5 : 10;
-    form.setFieldsValue({ borrowLimit: bl });
   }, [role, idNumber, isEdit, form]);
 
-  const isStudent = useMemo(() => String(role || "").toLowerCase() === "student", [role]);
+  const isStudent = useMemo(
+    () => String(role || "").toLowerCase() === "student",
+    [role]
+  );
 
   const onSubmit = async () => {
     try {
       const values = await form.validateFields();
       const payload = { ...values };
 
-      // Chuẩn hoá tạo mới
       if (!isEdit) {
-        // bắt buộc userId/username theo tính toán FE
         if (!payload.userId) {
           message.error("Vui lòng nhập mã số để tạo userId");
           return;
@@ -105,34 +109,23 @@ export default function UpsertUserModal({ open, onClose, init }) {
         if (!payload.username) {
           payload.username = payload.userId.toLowerCase();
         }
-
-        // nếu không nhập password ⇒ tự sinh
-        if (!payload.password) {
-          const pwd = genPassword();
-          payload.password = pwd;
-          autoPwdRef.current = pwd;
-        }
       } else {
-        // edit: không cho gửi các field không cần thiết
         delete payload.idNumber;
-        delete payload.password; // đổi mật khẩu làm ở chức năng riêng
-        delete payload.userId;   // không đổi userId khi edit
+        delete payload.password; // đổi mật khẩu ở nơi khác
+        delete payload.userId; // không đổi userId
       }
 
-      // ép kiểu số
-      if (payload.borrowLimit != null) payload.borrowLimit = Number(payload.borrowLimit);
-      if (payload.year != null && payload.year !== "") payload.year = Number(payload.year);
+      if (payload.borrowLimit != null)
+        payload.borrowLimit = Number(payload.borrowLimit);
+      if (payload.year != null && payload.year !== "")
+        payload.year = Number(payload.year);
 
       if (isEdit) {
         await updateUser({ userId: init.userId, data: payload }).unwrap();
         message.success("Updated user");
       } else {
         await createUser(payload).unwrap();
-        if (autoPwdRef.current) {
-          message.success(`Created. Initial password: ${autoPwdRef.current}`);
-        } else {
-          message.success("Created");
-        }
+        message.success("Created");
       }
 
       onClose?.(true);
@@ -149,133 +142,222 @@ export default function UpsertUserModal({ open, onClose, init }) {
       onCancel={() => onClose?.(false)}
       onOk={onSubmit}
       okButtonProps={{ loading: creating || updating }}
-      destroyOnClose
+      destroyOnHidden
+      width={900}
+      maskClosable={false}
     >
-      <Form form={form} layout="vertical">
-        {/* Role trước vì ảnh hưởng userId/borrowLimit */}
-        <Form.Item
-          name="role"
-          label="Role"
-          rules={[{ required: true, message: "Role is required" }]}
-        >
-          <Select options={ROLE_OPTIONS} disabled={isEdit} />
-        </Form.Item>
+      <Form
+        form={form}
+        layout="vertical"
+        colon={false}
+        requiredMark="optional"
+      >
+        {/* SECTION: Role & ID */}
+        <Row gutter={[16, 8]}>
+          <Col span={24}>
+            <Divider orientation="left">
+              Role & ID{" "}
+              <Tooltip title="Role ảnh hưởng prefix của User ID (SV/GV/AD)">
+                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+              </Tooltip>
+            </Divider>
+          </Col>
 
-        {!isEdit && (
-          <>
+          <Col xs={24} md={8}>
             <Form.Item
-              name="idNumber"
-              label="ID Number"
-              rules={[
-                { required: true, message: "ID Number is required" },
-                {
-                  validator: (_, v) => {
-                    if (!v) return Promise.resolve();
-                    const digits = String(v).replace(/\D+/g, "");
-                    if (!digits) return Promise.reject("Chỉ nhập chữ số");
-                    if (digits.length < 4) return Promise.reject("Tối thiểu 4 chữ số");
-                    return Promise.resolve();
-                  }
-                }
-              ]}
+              name="role"
+              label="Role"
+              rules={[{ required: true, message: "Role is required" }]}
             >
-              <Input
-                placeholder="VD: 24550022"
-                onChange={(e) => {
-                  const raw = e.target.value || "";
-                  // Cho nhập tự do nhưng sẽ strip khi tính userId
-                  form.setFieldsValue({ idNumber: raw });
-                }}
+              <Select
+                options={ROLE_OPTIONS}
+                disabled={isEdit}
+                showSearch
+                optionFilterProp="label"
               />
             </Form.Item>
+          </Col>
 
-            <Form.Item label="User ID (auto)" name="userId">
-              <Input disabled />
-            </Form.Item>
-          </>
-        )}
+          {!isEdit && (
+            <>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="idNumber"
+                  label="ID Number"
+                  tooltip="Chỉ nhập chữ số; sẽ ghép với prefix theo Role"
+                  rules={[
+                    { required: true, message: "ID Number is required" },
+                    {
+                      validator: (_, v) => {
+                        if (!v) return Promise.resolve();
+                        const digits = String(v).replace(/\D+/g, "");
+                        if (!digits) return Promise.reject("Chỉ nhập chữ số");
+                        if (digits.length < 4)
+                          return Promise.reject("Tối thiểu 4 chữ số");
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                >
+                  <Input
+                    allowClear
+                    placeholder="VD: 24550022"
+                    onChange={(e) => {
+                      const raw = e.target.value || "";
+                      form.setFieldsValue({ idNumber: raw });
+                    }}
+                  />
+                </Form.Item>
+              </Col>
 
-        <Form.Item
-          name="username"
-          label="Username"
-          rules={[{ required: true, message: "Username is required" }]}
-        >
-          <Input placeholder="mặc định = userId (lowercase)" />
-        </Form.Item>
+              <Col xs={24} md={8}>
+                <Form.Item name="userId" label="User ID (auto)">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+            </>
+          )}
+        </Row>
 
-        {!isEdit && (
-          <Form.Item name="password" label="Password (optional)">
-            <Space.Compact style={{ width: "100%" }}>
-              <Input.Password placeholder="Để trống sẽ tự sinh" />
-              <Button
-                onClick={() => {
-                  const pwd = genPassword();
-                  form.setFieldsValue({ password: pwd });
-                }}
-              >
-                Generate
-              </Button>
-            </Space.Compact>
-          </Form.Item>
-        )}
+        {/* SECTION: Credentials */}
+        <Row gutter={[16, 8]}>
+          <Col span={24}>
+            <Divider orientation="left">Credentials</Divider>
+          </Col>
 
-        <Form.Item
-          name="name"
-          label="Full name"
-          rules={[{ required: true, message: "Full name is required" }]}
-        >
-          <Input placeholder="Họ tên" />
-        </Form.Item>
-
-        <Form.Item name="email" label="Email">
-          <Input placeholder="email@domain.com" />
-        </Form.Item>
-
-        <Form.Item name="phone" label="Phone">
-          <Input placeholder="+84..." />
-        </Form.Item>
-
-        <Form.Item
-          name="status"
-          label="Status"
-          rules={[{ required: true, message: "Status is required" }]}
-        >
-          <Select
-            options={[
-              { value: "active", label: "Active" },
-              { value: "banned", label: "Banned" },
-            ]}
-          />
-        </Form.Item>
-
-        <Form.Item name="borrowLimit" label="Borrow limit">
-          <Input type="number" min={0} />
-        </Form.Item>
-
-        {isStudent && (
-          <>
-            <Form.Item name="department" label="Department">
-              <Input placeholder="CNTT, Kinh tế..." />
-            </Form.Item>
+          <Col xs={24} md={12}>
             <Form.Item
-              name="year"
-              label="Year"
+              name="username"
+              label="Username"
+              rules={[{ required: true, message: "Username is required" }]}
+              extra="Mặc định sẽ = userId (lowercase) khi tạo mới"
+            >
+              <Input allowClear placeholder="mặc định = userId (lowercase)" />
+            </Form.Item>
+          </Col>
+
+          {!isEdit && (
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="password"
+                label="Password"
+                rules={[{ required: true, message: "Password is required" }]}
+              >
+                <Input.Password placeholder="Nhập mật khẩu" />
+              </Form.Item>
+            </Col>
+          )}
+        </Row>
+
+        {/* SECTION: Profile */}
+        <Row gutter={[16, 8]}>
+          <Col span={24}>
+            <Divider orientation="left">Profile</Divider>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="name"
+              label="Full name"
+              rules={[{ required: true, message: "Full name is required" }]}
+            >
+              <Input allowClear placeholder="Họ tên" />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="email"
+              label="Email"
               rules={[
-                ({ getFieldValue }) => ({
-                  validator: (_, v) => {
-                    if (v == null || v === "") return Promise.resolve();
-                    const n = Number(v);
-                    if (!Number.isInteger(n) || n < 1 || n > 10) {
-                      return Promise.reject("Year phải là số nguyên 1–10");
-                    }
-                    return Promise.resolve();
-                  }
-                })
+                { required: true, message: "Email is required" },
+                { type: "email", message: "Email không hợp lệ" },
               ]}
             >
-              <Input type="number" placeholder="1…10" />
+              <Input allowClear placeholder="email@domain.com" />
             </Form.Item>
-          </>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item name="phone" label="Phone">
+              <Input allowClear placeholder="+84..." />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {/* SECTION: Library Settings */}
+        <Row gutter={[16, 8]}>
+          <Col span={24}>
+            <Divider orientation="left">Library Settings</Divider>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="status"
+              label="Status"
+              rules={[{ required: true, message: "Status is required" }]}
+            >
+              <Select
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "banned", label: "Banned" },
+                ]}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item name="borrowLimit" label="Borrow limit">
+              <InputNumber
+                min={0}
+                style={{ width: "100%" }}
+                placeholder="Số sách tối đa được mượn"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {/* SECTION: Student details */}
+        {isStudent && (
+          <Row gutter={[16, 8]}>
+            <Col span={24}>
+              <Divider orientation="left">Student details</Divider>
+            </Col>
+
+            <Col xs={24} md={12}>
+              <Form.Item name="department" label="Department">
+                <Input allowClear placeholder="CNTT, Kinh tế..." />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="year"
+                label={
+                  <>
+                    Year{" "}
+                    <Tooltip title="Số nguyên 1–10">
+                      <InfoCircleOutlined />
+                    </Tooltip>
+                  </>
+                }
+                rules={[
+                  () => ({
+                    validator: (_, v) => {
+                      if (v == null || v === "") return Promise.resolve();
+                      const n = Number(v);
+                      if (!Number.isInteger(n) || n < 1 || n > 10) {
+                        return Promise.reject("Year phải là số nguyên 1–10");
+                      }
+                      return Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <InputNumber min={1} max={10} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
         )}
       </Form>
     </Modal>
