@@ -1,143 +1,91 @@
 // src/controllers/category.controller.js
 import { CategoryDAO } from "../DAO/category.DAO.js";
 
-const toInt = (v, d = 0) => {
-  const n = parseInt(v, 10);
-  return Number.isNaN(n) ? d : n;
-};
-
 export const CategoryController = {
-  /** GET /categories/all */
-  async getAllCategories(req, res) {
-    try {
-      const categories = await CategoryDAO.getAllCategories();
-      return res.status(200).json(categories);
-    } catch (err) {
-      console.error("❌ Category.getAllCategories:", err);
-      return res.status(500).json({ message: "Lỗi server" });
-    }
-  },
-
-  /** GET /categories?page=&limit=&q=&ids=CAT001,CAT002
-   *  Alias: pageSize -> limit (tương thích FE cũ) */
+  // GET /api/categories?q=&limit=&page=&ids=CAT001,CAT002
   async list(req, res) {
     try {
-      const limit = Math.min(100, Math.max(1, toInt(req.query.limit ?? req.query.pageSize, 50)));
-      const page = Math.max(1, toInt(req.query.page, 1));
-      const q = (req.query.q || "").trim();
-      const ids = req.query.ids
-        ? String(req.query.ids).split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
-
-      const data = await CategoryDAO.list({ q, limit, page, ids });
-      // DAO trả { items, total, page, pageSize }; thêm trường limit cho rõ
-      return res.json({ ...data, limit: data.pageSize });
-    } catch (e) {
-      console.error("❌ Category.list:", e);
+      const { q, limit, page, ids } = req.query;
+      const result = await CategoryDAO.list({
+        q,
+        limit,
+        page,
+        ids: ids ? String(ids).split(",").map((s) => s.trim()).filter(Boolean) : [],
+      });
+      return res.json(result);
+    } catch (err) {
+      console.error("list categories error:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },
 
-  /** GET /categories/:categoryId */
-  async getCategoryById(req, res) {
+  // GET /api/categories/:categoryId
+  async getOne(req, res) {
     try {
-      const { categoryId } = req.params || {};
-      if (!categoryId) return res.status(400).json({ message: "Thiếu categoryId" });
-
-      const doc = await CategoryDAO.getCategoryById(String(categoryId));
-      if (!doc) return res.status(404).json({ message: "Không tìm thấy danh mục" });
-
+      const { categoryId } = req.params;
+      const doc = await CategoryDAO.getById(categoryId);
+      if (!doc) return res.status(404).json({ message: "Không tìm thấy category" });
       return res.json(doc);
-    } catch (e) {
-      console.error("❌ Category.getCategoryById:", e);
+    } catch (err) {
+      console.error("getOne category error:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },
 
-  /** GET /categories/search?q=  hoặc /categories/search/:searchTerm */
-  async searchCategories(req, res) {
-    try {
-      const q = (req.query.q ?? req.params.searchTerm ?? "").trim();
-      const items = await CategoryDAO.searchCategories(q);
-      return res.json(items);
-    } catch (e) {
-      console.error("❌ Category.searchCategories:", e);
-      return res.status(500).json({ message: "Lỗi server" });
-    }
-  },
-
-  /** GET /categories/popular?limit=  hoặc /categories/popular/:limit? */
-  async getPopularCategories(req, res) {
-    try {
-      const raw = req.query.limit ?? req.params.limit;
-      const limit = Math.min(50, Math.max(1, toInt(raw, 5)));
-      const items = await CategoryDAO.getPopularCategories(limit);
-      return res.json(items);
-    } catch (e) {
-      console.error("❌ Category.getPopularCategories:", e);
-      return res.status(500).json({ message: "Lỗi server" });
-    }
-  },
-
-  /** POST /categories */
+  // POST /api/categories   (admin/librarian)
   async create(req, res) {
     try {
-      const created = await CategoryDAO.createCategory(req.body || {});
-      return res.status(201).json(created);
-    } catch (e) {
-      if (e?.code === "VALIDATION_ERROR" || String(e.message || "").startsWith("VALIDATION_ERROR")) {
-        return res.status(400).json({ message: "Dữ liệu không hợp lệ", detail: e.message });
+      const doc = await CategoryDAO.create(req.body || {});
+      return res.status(201).json({ message: "Tạo category thành công", category: doc });
+    } catch (err) {
+      if (err.message === "NAME_REQUIRED") {
+        return res.status(400).json({ message: "Tên category là bắt buộc" });
       }
-      if (e?.code === 11000) {
-        return res.status(409).json({ message: "Danh mục đã tồn tại (trùng unique key)" });
+      if (err.message === "CATEGORYID_TAKEN") {
+        return res.status(409).json({ message: "Mã category đã tồn tại" });
       }
-      console.error("❌ Category.create:", e);
+      console.error("create category error:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },
 
-  /** PUT /categories/:categoryId */
+  // PUT /api/categories/:categoryId   (admin/librarian)
   async update(req, res) {
     try {
-      const { categoryId } = req.params || {};
-      if (!categoryId) return res.status(400).json({ message: "Thiếu categoryId" });
-
-      const r = await CategoryDAO.updateCategory(String(categoryId), req.body || {});
-      if (!r?.matchedCount) return res.status(404).json({ message: "Không tìm thấy danh mục" });
-
-      const doc = await CategoryDAO.getCategoryById(String(categoryId));
-      return res.json(doc || { ok: true });
-    } catch (e) {
-      if (e?.code === 11000) {
-        return res.status(409).json({ message: "Danh mục đã tồn tại (trùng unique key)" });
-      }
-      console.error("❌ Category.update:", e);
+      const { categoryId } = req.params;
+      const r = await CategoryDAO.update(categoryId, req.body || {});
+      if (r.matchedCount === 0) return res.status(404).json({ message: "Không tìm thấy category" });
+      return res.json({ message: "Cập nhật category thành công" });
+    } catch (err) {
+      console.error("update category error:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },
 
-  /** DELETE /categories/:categoryId */
+  // DELETE /api/categories/:categoryId   (admin/librarian)
   async remove(req, res) {
     try {
-      const { categoryId } = req.params || {};
-      if (!categoryId) return res.status(400).json({ message: "Thiếu categoryId" });
-
-      try {
-        const r = await CategoryDAO.deleteCategory(String(categoryId));
-        if (!r?.deletedCount) return res.status(404).json({ message: "Không tìm thấy danh mục" });
-        return res.json({ message: "Đã xoá", categoryId });
-      } catch (err) {
-        if (err?.code === "CATEGORY_IN_USE") {
-          return res.status(409).json({
-            message: "Không thể xoá do còn sách tham chiếu",
-            code: "CATEGORY_IN_USE",
-            bookCount: err.bookCount || 0,
-          });
-        }
-        throw err;
+      const { categoryId } = req.params;
+      const r = await CategoryDAO.remove(categoryId);
+      if (r.deletedCount === 0) return res.status(404).json({ message: "Không tìm thấy category" });
+      return res.json({ message: "Xoá category thành công" });
+    } catch (err) {
+      if (err.code === "IN_USE") {
+        return res.status(409).json({ message: "Không thể xoá: Category đang được dùng bởi sách" });
       }
-    } catch (e) {
-      console.error("❌ Category.remove:", e);
+      console.error("remove category error:", err);
+      return res.status(500).json({ message: "Lỗi server" });
+    }
+  },
+
+  // GET /api/categories/popular?limit=5
+  async popular(req, res) {
+    try {
+      const limit = parseInt(req.query.limit ?? "5", 10);
+      const items = await CategoryDAO.popular(limit);
+      return res.json({ items, limit });
+    } catch (err) {
+      console.error("popular categories error:", err);
       return res.status(500).json({ message: "Lỗi server" });
     }
   },

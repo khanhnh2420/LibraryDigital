@@ -42,7 +42,7 @@ try {
   console.error("❌ Ensure indexes failed:", err);
 }
 
-expireHolds();
+// expireHolds();
 
 // ===== App =====
 const app = express();

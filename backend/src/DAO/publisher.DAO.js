@@ -11,60 +11,73 @@ async function nextPublisherId(db) {
     { upsert: true, returnDocument: "after" }
   );
   const n = ret.value?.seq ?? 1;
-  return `PUB${String(n).padStart(3, "0")}`;
+  return `PUB${String(n).padStart(6, "0")}`;
 }
 
 export const PublisherDAO = {
-  // Dropdown / list nhẹ
-  async list({ q = "", limit = 200, page = 1, ids = [] } = {}) {
-    const db = await getDB();
-    const col = db.collection(collection);
+  // Dropdown / list nhẹ — MẶC ĐỊNH: mới nhất
+async list({ q = "", limit = 200, page = 1, ids = [], sort = "createdAt", order = "desc" } = {}) {
+  const db = await getDB();
+  const col = db.collection(collection);
 
-    const pageN = Math.max(1, parseInt(page, 10) || 1);
-    const limitN = Math.min(200, Math.max(1, parseInt(limit, 10) || 200));
-    const keyword = toStr(q) || "";
+  const pageN  = Math.max(1, parseInt(page, 10) || 1);
+  const limitN = Math.min(200, Math.max(1, parseInt(limit, 10) || 200));
+  const keyword = toStr(q) || "";
 
-    const match = {};
-    if (Array.isArray(ids) && ids.length > 0) {
-      match.publisherId = { $in: ids.map(String) };
-    } else if (keyword) {
-      match.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { publisherId: { $regex: keyword, $options: "i" } },
-      ];
-    }
+  const match = {};
+  if (Array.isArray(ids) && ids.length > 0) {
+    match.publisherId = { $in: ids.map(String) };
+  } else if (keyword) {
+    match.$or = [
+      { name: { $regex: keyword, $options: "i" } },
+      { publisherId: { $regex: keyword, $options: "i" } },
+    ];
+  }
 
-    const total = await col.countDocuments(match);
-    const items = await col
-      .find(match, { projection: { _id: 0, publisherId: 1, name: 1 } })
-      .sort({ name: 1, publisherId: 1 })
-      .skip((pageN - 1) * limitN)
-      .limit(limitN)
-      .toArray();
+  const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt"]);
+  const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
+  const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
 
-    return { items, total, page: pageN, pageSize: limitN };
-  },
+  const total = await col.countDocuments(match);
+  const items = await col
+    .find(match, { projection: { _id: 0, publisherId: 1, name: 1, createdAt: 1, updatedAt: 1 } })
+    .sort({ [field]: dir, _id: -1 })
+    .skip((pageN - 1) * limitN)
+    .limit(limitN)
+    .toArray();
 
-  // List phân trang cho admin + bookCount
-  async listPaged({ page = 1, pageSize = 10, q = "" } = {}) {
-    const db = await getDB();
-    const col = db.collection(collection);
+  return { items, total, page: pageN, pageSize: limitN };
+},
 
-    const pageN = Math.max(1, parseInt(page, 10) || 1);
-    const limitN = Math.max(1, parseInt(pageSize, 10) || 10);
-    const keyword = toStr(q) || "";
+// List phân trang cho admin + bookCount — MẶC ĐỊNH: mới nhất
+async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "desc" } = {}) {
+  const db = await getDB();
+  const col = db.collection(collection);
 
-    const match = {};
-    if (keyword) {
-      match.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { publisherId: { $regex: keyword, $options: "i" } },
-      ];
-    }
+  const pageN  = Math.max(1, parseInt(page, 10) || 1);
+  const limitN = Math.max(1, parseInt(pageSize, 10) || 10);
+  const keyword = toStr(q) || "";
 
-    const total = await col.countDocuments(match);
+  const match = {};
+  if (keyword) {
+    match.$or = [
+      { name: { $regex: keyword, $options: "i" } },
+      { publisherId: { $regex: keyword, $options: "i" } },
+    ];
+  }
+
+  const allowedSort = new Set(["name", "publisherId", "createdAt", "updatedAt", "bookCount"]);
+  const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
+  const dir   = String(order).toLowerCase() === "asc" ? 1 : -1;
+
+  const total = await col.countDocuments(match);
+
+  if (field !== "bookCount") {
     const items = await col.aggregate([
       { $match: match },
+      { $sort: { [field]: dir, _id: -1 } },
+      { $skip: (pageN - 1) * limitN },
+      { $limit: limitN },
       {
         $lookup: {
           from: "books",
@@ -73,18 +86,40 @@ export const PublisherDAO = {
             { $match: { $expr: { $eq: ["$publisherId", "$$pid"] } } },
             { $count: "c" }
           ],
-          as: "countBooks"
+          as: "_cnt"
         }
       },
-      { $addFields: { bookCount: { $ifNull: [{ $arrayElemAt: ["$countBooks.c", 0] }, 0] } } },
-      { $project: { _id: 0, countBooks: 0 } },
-      { $sort: { name: 1, publisherId: 1 } },
-      { $skip: (pageN - 1) * limitN },
-      { $limit: limitN }
+      { $addFields: { bookCount: { $ifNull: [{ $first: "$_cnt.c" }, 0] } } },
+      { $project: { _id: 0, _cnt: 0 } },
     ]).toArray();
 
     return { items, total, page: pageN, pageSize: limitN };
-  },
+  }
+
+  // sort theo bookCount
+  const items = await col.aggregate([
+    { $match: match },
+    {
+      $lookup: {
+        from: "books",
+        let: { pid: "$publisherId" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$publisherId", "$$pid"] } } },
+          { $count: "c" }
+        ],
+        as: "_cnt"
+      }
+    },
+    { $addFields: { bookCount: { $ifNull: [{ $first: "$_cnt.c" }, 0] } } },
+    { $project: { _id: 0, _cnt: 0 } },
+    { $sort: { bookCount: dir, _id: -1 } },
+    { $skip: (pageN - 1) * limitN },
+    { $limit: limitN },
+  ]).toArray();
+
+  return { items, total, page: pageN, pageSize: limitN };
+},
+
 
   async getById(publisherId) {
     const db = await getDB();

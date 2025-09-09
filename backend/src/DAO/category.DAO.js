@@ -1,242 +1,177 @@
 // src/DAO/category.DAO.js
 import { getDB } from "../config/db.js";
 
-const collection = "categories";
+const COLLECTION = "categories";
 
+// Helper: escape regex an toàn
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Helper: phát sinh ID CAT000001
 async function nextCategoryId(db) {
   const ret = await db.collection("counters").findOneAndUpdate(
     { _id: "categoryId" },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" }
   );
-  const n = ret.value?.seq ?? 1;
-  return `CAT${String(n).padStart(3, "0")}`;
+  const n = ret.value?.seq || 1;
+  return `CAT${String(n).padStart(6, "0")}`;
 }
 
-const toStr = (v) => (v == null ? null : String(v).trim());
+function normStr(v) {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
 
 export const CategoryDAO = {
   /**
-   * Lấy tất cả categories (đơn giản)
-   */
-  async getAllCategories() {
-    const db = await getDB();
-    return db
-      .collection(collection)
-      .find({})
-      .project({ _id: 0, createdAt: 0, updatedAt: 0 })
-      .sort({ categoryId: 1 })
-      .toArray();
-  },
-
-  /**
-   * Danh sách cho dropdown hoặc liệt kê nhẹ (có phân trang đơn giản)
+   * List + tìm kiếm + phân trang (phục vụ dropdown & trang quản trị)
+   * query: { q, limit, page, ids }
    * Trả: { items, total, page, pageSize }
    */
-  async list({ q = "", limit = 50, page = 1, ids = [] } = {}) {
+  async list({ q = "", limit = 10, page = 1, ids = [], sort = "createdAt", order = "desc" } = {}) {
     const db = await getDB();
-    const col = db.collection(collection);
+    const col = db.collection(COLLECTION);
 
-    const _page = Math.max(1, parseInt(page, 10) || 1);
-    const _limit = Math.max(1, parseInt(limit, 10) || 50);
+    page = Math.max(1, parseInt(page, 10) || 1);
+    limit = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
 
-    const keyword = toStr(q) || "";
     const match = {};
-
-    if (keyword) {
+    const qq = (q || "").trim();
+    if (qq) {
+      const safe = escapeRegex(qq);
       match.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { categoryId: { $regex: keyword, $options: "i" } }
+        { name: { $regex: safe, $options: "i" } },
+        { categoryId: { $regex: safe, $options: "i" } },
       ];
     }
-    if (Array.isArray(ids) && ids.length > 0) {
-      match.categoryId = { $in: ids };
-    }
+
+    const allowed = new Set(["name", "categoryId", "createdAt", "updatedAt"]);
+    const field = allowed.has(String(sort)) ? String(sort) : "createdAt";
+    const dir = String(order).toLowerCase() === "asc" ? 1 : -1;
 
     const total = await col.countDocuments(match);
-    const items = await col
-      .find(match, { projection: { _id: 0, categoryId: 1, name: 1 } })
-      .sort({ name: 1, categoryId: 1 })
-      .skip((_page - 1) * _limit)
-      .limit(_limit)
-      .toArray();
 
-    return { items, total, page: _page, pageSize: _limit };
+    const pipeline = [
+      { $match: match },
+      { $sort: { [field]: dir, _id: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+
+      // Đếm sách theo categoryId
+      {
+        $lookup: {
+          from: "books",
+          let: { cid: "$categoryId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$categoryId", "$$cid"] } } },
+            { $count: "count" }
+          ],
+          as: "_b"
+        }
+      },
+      { $addFields: { bookCount: { $ifNull: [{ $first: "$_b.count" }, 0] } } },
+      { $project: { _id: 0, _b: 0 } }
+    ];
+
+    const items = await col.aggregate(pipeline).toArray();
+    return { items, total, page, pageSize: limit };
   },
 
-  // ========== CRUD OPERATIONS ==========
-  async getCategoryById(categoryId) {
+  /** Lấy 1 category theo categoryId */
+  async getById(categoryId) {
     const db = await getDB();
-    return db
-      .collection(collection)
-      .findOne({ categoryId }, { projection: { _id: 0 } });
+    return db.collection(COLLECTION).findOne(
+      { categoryId },
+      { projection: { _id: 0 } }
+    );
   },
 
-  async createCategory(categoryData) {
+  /** Tạo mới category, có thể auto-gen categoryId */
+  async create(data = {}) {
     const db = await getDB();
-    const col = db.collection(collection);
-
-    // validate cơ bản
-    const { isValid, errors } = this.validateCategoryData(categoryData);
-    if (!isValid) {
-      const err = new Error("VALIDATION_ERROR:: " + errors.join(", "));
-      err.code = "VALIDATION_ERROR";
-      throw err;
-    }
+    const col = db.collection(COLLECTION);
 
     const doc = {
-      categoryId: toStr(categoryData.categoryId) || (await nextCategoryId(db)),
-      name: String(categoryData.name).trim(),
-      description: toStr(categoryData.description),
+      categoryId: normStr(data.categoryId) || (await nextCategoryId(db)),
+      name: normStr(data.name),
+      description: normStr(data.description),
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
-    await col.insertOne(doc);
-    return doc;
-  },
+    if (!doc.name) throw new Error("NAME_REQUIRED");
 
-  async updateCategory(categoryId, updateData) {
-    const db = await getDB();
-
-    const set = {};
-    if ("name" in updateData) set.name = toStr(updateData.name);
-    if ("description" in updateData) set.description = toStr(updateData.description);
-    set.updatedAt = new Date();
-
-    const r = await db.collection(collection).updateOne(
-      { categoryId },
-      { $set: set }
-    );
-    return r;
-  },
-
-  async deleteCategory(categoryId) {
-    const db = await getDB();
-
-    // Chặn xoá nếu còn sách tham chiếu
-    const bookCount = await db.collection("books").countDocuments({ categoryId });
-    if (bookCount > 0) {
-      const err = new Error("CATEGORY_IN_USE");
-      err.code = "CATEGORY_IN_USE";
-      err.bookCount = bookCount;
-      throw err;
+    // Check trùng categoryId nếu client đưa lên
+    if (data.categoryId) {
+      const dup = await col.findOne({ categoryId: doc.categoryId }, { projection: { _id: 1 } });
+      if (dup) throw new Error("CATEGORYID_TAKEN");
     }
 
-    const r = await db.collection(collection).deleteOne({ categoryId });
-    return r;
+    await col.insertOne(doc);
+    return doc; // { categoryId, name, ... }
   },
 
-  // ========== SPECIAL QUERIES ==========
-  async categoryExists(categoryId) {
+  /** Cập nhật category theo categoryId */
+  async update(categoryId, data = {}) {
     const db = await getDB();
-    const count = await db.collection(collection).countDocuments({ categoryId });
-    return count > 0;
+    const col = db.collection(COLLECTION);
+
+    const setDoc = {
+      updatedAt: new Date(),
+    };
+    if (data.name !== undefined) setDoc.name = normStr(data.name);
+    if (data.description !== undefined) setDoc.description = normStr(data.description);
+
+    const r = await col.updateOne({ categoryId }, { $set: setDoc });
+    return r;
   },
 
   /**
-   * Danh sách phân trang đầy đủ (kèm bookCount)
-   * Trả: { categories, pagination: { page, limit, total, totalPages } }
+   * Xoá category (nếu đang được book tham chiếu → báo 409 phía controller)
+   * Trả về kết quả deleteOne
    */
-  async getCategoriesPaginated(page = 1, limit = 10) {
+  async remove(categoryId) {
     const db = await getDB();
-    const _page = Math.max(1, parseInt(page, 10) || 1);
-    const _limit = Math.max(1, parseInt(limit, 10) || 10);
-    const skip = (_page - 1) * _limit;
-
-    const [categories, total] = await Promise.all([
-      db
-        .collection(collection)
-        .aggregate([
-          { $sort: { name: 1, categoryId: 1 } },
-          {
-            $lookup: {
-              from: "books",
-              let: { cid: "$categoryId" },
-              pipeline: [
-                { $match: { $expr: { $eq: ["$categoryId", "$$cid"] } } },
-                { $count: "c" }
-              ],
-              as: "countBooks"
-            }
-          },
-          {
-            $addFields: {
-              bookCount: { $ifNull: [{ $arrayElemAt: ["$countBooks.c", 0] }, 0] }
-            }
-          },
-          { $project: { _id: 0, countBooks: 0 } },
-          { $skip: skip },
-          { $limit: _limit }
-        ])
-        .toArray(),
-      db.collection(collection).countDocuments()
-    ]);
-
-    return {
-      categories,
-      pagination: {
-        page: _page,
-        limit: _limit,
-        total,
-        totalPages: Math.ceil(total / _limit)
-      }
-    };
+    // Kiểm tra đang được dùng bởi books?
+    const inUse = await db.collection("books").countDocuments({ categoryId });
+    if (inUse > 0) {
+      const err = new Error("CATEGORY_IN_USE");
+      err.code = "IN_USE";
+      throw err;
+    }
+    return db.collection(COLLECTION).deleteOne({ categoryId });
   },
 
-  async searchCategories(searchTerm) {
-    const db = await getDB();
-    const q = String(searchTerm || "").trim();
-    return db
-      .collection(collection)
-      .find(
-        q
-          ? { name: { $regex: q, $options: "i" } }
-          : {},
-        { projection: { _id: 0, createdAt: 0, updatedAt: 0 } }
-      )
-      .sort({ categoryId: 1 })
-      .toArray();
-  },
-
-  async getPopularCategories(limit = 5) {
+  /** Top category theo số lượng sách */
+  async popular(limit = 5) {
     const db = await getDB();
     return db
       .collection("books")
       .aggregate([
-        { $group: { _id: "$categoryId", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: Math.max(1, parseInt(limit, 10) || 5) },
+        { $group: { _id: "$categoryId", bookCount: { $sum: 1 } } },
+        { $sort: { bookCount: -1 } },
+        { $limit: limit },
         {
           $lookup: {
             from: "categories",
             localField: "_id",
             foreignField: "categoryId",
-            as: "categoryInfo"
-          }
+            as: "cat",
+          },
         },
-        { $unwind: "$categoryInfo" },
+        { $unwind: "$cat" },
         {
           $project: {
             _id: 0,
-            categoryId: "$categoryInfo.categoryId",
-            name: "$categoryInfo.name",
-            bookCount: "$count"
-          }
-        }
+            categoryId: "$cat.categoryId",
+            name: "$cat.name",
+            bookCount: 1,
+          },
+        },
       ])
       .toArray();
   },
-
-  // ========== VALIDATION ==========
-  validateCategoryData(categoryData = {}) {
-    const errors = [];
-    const name = toStr(categoryData.name);
-
-    if (!name) errors.push("Tên category là bắt buộc");
-    if (name && name.length > 100) errors.push("Tên category không được vượt quá 100 ký tự");
-
-    // categoryId KHÔNG bắt buộc (sẽ tự sinh nếu thiếu)
-    return { isValid: errors.length === 0, errors };
-  }
 };

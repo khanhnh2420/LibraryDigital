@@ -1,42 +1,64 @@
 // src/DAO/author.DAO.js
 import { getDB } from "../config/db.js";
+import { escapeRegex } from "../utils/regex.js";
 
-const collection = "authors";
+const COLLECTION = "authors";
 const toStr = (v) => (v == null ? null : String(v).trim());
+const toBool = (v) => (v === false ? false : true);
+
+/** Sinh mã authorId: AUTH000001, AUTH000002, ... */
+async function nextAuthorId(db) {
+  const ret = await db.collection("counters").findOneAndUpdate(
+    { _id: "authorId" },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: "after" }
+  );
+  const n = ret.value?.seq || 1;
+  return `AUTH${String(n).padStart(6, "0")}`;
+}
 
 export const AuthorDAO = {
   /**
-   * Dùng cho dropdown / list
-   * Hỗ trợ: q (search theo name/authorId), ids (lấy theo danh sách id),
-   * page/limit (phân trang), sort mặc định theo name rồi authorId.
+   * Dành cho dropdown/list nhanh
+   * Hỗ trợ q/ids/sort/order, mặc định sort theo name asc
    */
-  async list({ q = "", limit = 200, page = 1, ids = [] } = {}) {
+  async list({ q = "", limit = 200, page = 1, ids = [], sort = "name", order = "asc" } = {}) {
     const db = await getDB();
-    const col = db.collection(collection);
+    const col = db.collection(COLLECTION);
 
     const pageN = Math.max(1, parseInt(page, 10) || 1);
     const limitN = Math.min(200, Math.max(1, parseInt(limit, 10) || 200));
-    const qTrim = toStr(q) || "";
 
     const match = {};
-
+    const qq = toStr(q) || "";
     if (Array.isArray(ids) && ids.length > 0) {
       match.authorId = { $in: ids.map((x) => String(x)) };
-    } else if (qTrim) {
+    } else if (qq) {
+      const safe = escapeRegex(qq);
       match.$or = [
-        { name: { $regex: qTrim, $options: "i" } },
-        { authorId: { $regex: qTrim, $options: "i" } },
+        { name: { $regex: safe, $options: "i" } },
+        { authorId: { $regex: safe, $options: "i" } },
       ];
     }
 
-    const total = await col.countDocuments(match);
+    const allowedSort = new Set(["name", "authorId", "createdAt", "updatedAt"]);
+    const field = allowedSort.has(String(sort)) ? String(sort) : "name";
+    const dir = String(order).toLowerCase() === "desc" ? -1 : 1;
 
+    const total = await col.countDocuments(match);
     const items = await col
-      .find(
-        match,
-        { projection: { _id: 0, authorId: 1, name: 1, bio: 1, website: 1 } }
-      )
-      .sort({ name: 1, authorId: 1 })
+      .find(match, {
+        projection: {
+          _id: 0,
+          authorId: 1,
+          name: 1,
+          description: 1,    // dùng description thay bio
+          website: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      })
+      .sort({ [field]: dir, _id: -1 })
       .skip((pageN - 1) * limitN)
       .limit(limitN)
       .toArray();
@@ -44,74 +66,132 @@ export const AuthorDAO = {
     return { items, total, page: pageN, pageSize: limitN };
   },
 
-  // Paged admin list + bookCount
-  async listPaged({ page = 1, pageSize = 10, q = "" } = {}) {
+  /**
+   * Danh sách trang quản trị (kèm bookCount)
+   * Mặc định sort createdAt desc (mới nhất)
+   */
+  async listPaged({ page = 1, pageSize = 10, q = "", sort = "createdAt", order = "desc" } = {}) {
     const db = await getDB();
-    const col = db.collection(collection);
+    const col = db.collection(COLLECTION);
 
     const _page = Math.max(1, parseInt(page, 10) || 1);
     const _limit = Math.max(1, parseInt(pageSize, 10) || 10);
     const keyword = toStr(q) || "";
-    const match = {};
 
+    const match = {};
     if (keyword) {
+      const safe = escapeRegex(keyword);
       match.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { authorId: { $regex: keyword, $options: "i" } }
+        { name: { $regex: safe, $options: "i" } },
+        { authorId: { $regex: safe, $options: "i" } },
       ];
     }
 
+    const allowedSort = new Set(["name", "authorId", "createdAt", "updatedAt", "bookCount"]);
+    const field = allowedSort.has(String(sort)) ? String(sort) : "createdAt";
+    const dir = String(order).toLowerCase() === "asc" ? 1 : -1;
+
     const total = await col.countDocuments(match);
-    const items = await col.aggregate([
-      { $match: match },
-      {
-        $lookup: {
-          from: "books",
-          let: { aid: "$authorId" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$authorId", "$$aid"] } } },
-            { $count: "c" }
-          ],
-          as: "countBooks"
-        }
-      },
-      {
-        $addFields: { bookCount: { $ifNull: [{ $arrayElemAt: ["$countBooks.c", 0] }, 0] } }
-      },
-      { $project: { _id: 0, countBooks: 0 } },
-      { $sort: { name: 1, authorId: 1 } },
-      { $skip: (_page - 1) * _limit },
-      { $limit: _limit }
-    ]).toArray();
+
+    // sort thường
+    if (field !== "bookCount") {
+      const items = await col
+        .aggregate([
+          { $match: match },
+          { $sort: { [field]: dir, _id: -1 } },
+          { $skip: (_page - 1) * _limit },
+          { $limit: _limit },
+          {
+            $lookup: {
+              from: "books",
+              let: { aid: "$authorId" },
+              pipeline: [
+                { $match: { $expr: { $eq: ["$authorId", "$$aid"] } } },
+                { $count: "c" },
+              ],
+              as: "_b",
+            },
+          },
+          { $addFields: { bookCount: { $ifNull: [{ $first: "$_b.c" }, 0] } } },
+          { $project: { _id: 0, _b: 0 } },
+        ])
+        .toArray();
+
+      return { items, total, page: _page, pageSize: _limit };
+    }
+
+    // sort theo bookCount
+    const items = await col
+      .aggregate([
+        { $match: match },
+        {
+          $lookup: {
+            from: "books",
+            let: { aid: "$authorId" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$authorId", "$$aid"] } } },
+              { $count: "c" },
+            ],
+            as: "_b",
+          },
+        },
+        { $addFields: { bookCount: { $ifNull: [{ $first: "$_b.c" }, 0] } } },
+        { $project: { _id: 0, _b: 0 } },
+        { $sort: { bookCount: dir, _id: -1 } },
+        { $skip: (_page - 1) * _limit },
+        { $limit: _limit },
+      ])
+      .toArray();
 
     return { items, total, page: _page, pageSize: _limit };
   },
 
   async getById(authorId) {
     const db = await getDB();
-    return db.collection(collection).findOne({ authorId }, { projection: { _id: 0 } });
+    return db.collection(COLLECTION).findOne(
+      { authorId },
+      { projection: { _id: 0 } }
+    );
   },
 
   async create(data) {
     const db = await getDB();
+    const col = db.collection(COLLECTION);
 
-    const { isValid, errors } = this.validate(data);
-    if (!isValid) {
-      const err = new Error("VALIDATION_ERROR:: " + errors.join(", "));
+    const name = toStr(data.name);
+    if (!name) {
+      const err = new Error("VALIDATION_ERROR:: Tên tác giả là bắt buộc");
+      err.code = "VALIDATION_ERROR";
+      throw err;
+    }
+    if (name.length > 120) {
+      const err = new Error("VALIDATION_ERROR:: Tên tác giả không vượt quá 120 ký tự");
       err.code = "VALIDATION_ERROR";
       throw err;
     }
 
+    const authorId = toStr(data.authorId) || (await nextAuthorId(db));
+
+    // check trùng
+    const dup = await col.findOne({ $or: [{ authorId }, { name }] }, { projection: { _id: 1 } });
+    if (dup) {
+      const err = new Error("AUTHOR_DUPLICATED");
+      err.code = "AUTHOR_DUPLICATED";
+      throw err;
+    }
+
+    const now = new Date();
     const doc = {
-      authorId: toStr(data.authorId) || (await nextAuthorId(db)),
-      name: String(data.name).trim(),
-      bio: toStr(data.bio),
+      authorId,
+      name,
+      description: toStr(data.description) || "Không có mô tả", // đổi sang description
       website: toStr(data.website),
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: now,
+      updatedAt: now,
+      isActive: toBool(data.isActive),
     };
 
-    await db.collection(collection).insertOne(doc);
+    await col.insertOne(doc);
     return doc;
   },
 
@@ -119,15 +199,17 @@ export const AuthorDAO = {
     const db = await getDB();
     const set = {};
     if ("name" in payload) set.name = toStr(payload.name);
-    if ("bio" in payload) set.bio = toStr(payload.bio);
+    if ("description" in payload) set.description = toStr(payload.description); // cập nhật description
     if ("website" in payload) set.website = toStr(payload.website);
+    if ("isActive" in payload) set.isActive = toBool(payload.isActive);
     set.updatedAt = new Date();
 
-    return db.collection(collection).updateOne({ authorId }, { $set: set });
+    return db.collection(COLLECTION).updateOne({ authorId }, { $set: set });
   },
 
   async remove(authorId) {
     const db = await getDB();
+    // Không xoá nếu còn sách tham chiếu
     const count = await db.collection("books").countDocuments({ authorId });
     if (count > 0) {
       const err = new Error("AUTHOR_IN_USE");
@@ -135,15 +217,6 @@ export const AuthorDAO = {
       err.bookCount = count;
       throw err;
     }
-    return db.collection(collection).deleteOne({ authorId });
+    return db.collection(COLLECTION).deleteOne({ authorId });
   },
-
-  validate(data = {}) {
-    const errors = [];
-    const name = toStr(data.name);
-    if (!name) errors.push("Tên tác giả là bắt buộc");
-    if (name && name.length > 120) errors.push("Tên tác giả không vượt quá 120 ký tự");
-    return { isValid: errors.length === 0, errors };
-  }
-
 };

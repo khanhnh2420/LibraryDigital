@@ -47,13 +47,10 @@ function UpsertAuthorModal({ open, onClose, init }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        <Form.Item name="authorId" label="Author ID">
-          <Input placeholder="AUTH001" disabled={isEdit} />
-        </Form.Item>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
           <Input placeholder="Tên tác giả" />
         </Form.Item>
-        <Form.Item name="bio" label="Bio">
+        <Form.Item name="description" label="Description">
           <Input.TextArea placeholder="Giới thiệu ngắn" autoSize={{ minRows: 2, maxRows: 4 }} />
         </Form.Item>
       </Form>
@@ -85,7 +82,7 @@ export default function Authors() {
     { title: "Name", dataIndex: "name", key: "name" },
     { title: "Author ID", dataIndex: "authorId", key: "authorId", width: 140 },
     { title: "Books", dataIndex: "bookCount", key: "bookCount", width: 100, align: "right", render: (v) => v ?? "-" },
-    { title: "Bio", dataIndex: "bio", key: "bio", ellipsis: true },
+    { title: "Description", dataIndex: "description", key: "description", ellipsis: true },
     {
       title: "Action",
       key: "action",

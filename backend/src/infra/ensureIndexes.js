@@ -55,9 +55,12 @@ export async function ensureIndexes() {
   await db.collection("books").createIndex({ isbn: 1 });
 
 
-  // ===== AUTHORS / PUBLISHERS / CATEGORIES =====
-  await db.collection("authors").createIndex({ authorId: 1 }, { unique: true });
-  await db.collection("authors").createIndex({ name: 1 });
+  // ===== AUTHORS  =====
+  await db.collection("authors").createIndex({ authorId: 1 }, { unique: true, });
+  await db.collection("authors").createIndex({ name: 1 },);
+  await db.collection("books").createIndex({ authorId: 1 },);
+
+  // ===== PUBLISHERS / CATEGORIES =====
   await db.collection("publishers").createIndex({ publisherId: 1 }, { unique: true });
   await db.collection("publishers").createIndex({ name: 1 });
   await db.collection("categories").createIndex({ categoryId: 1 }, { unique: true });

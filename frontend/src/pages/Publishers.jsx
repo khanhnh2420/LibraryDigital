@@ -47,9 +47,6 @@ function UpsertPublisherModal({ open, onClose, init }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        <Form.Item name="publisherId" label="Publisher ID">
-          <Input placeholder="PUB001" disabled={isEdit} />
-        </Form.Item>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
           <Input placeholder="Tên NXB" />
         </Form.Item>

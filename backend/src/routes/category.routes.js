@@ -1,30 +1,35 @@
 // src/routes/category.routes.js
-import express from "express";
+import { Router } from "express";
 import { CategoryController } from "../controllers/category.controller.js";
+import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
-const router = express.Router();
+const router = Router();
 
-// Lấy tất cả categories
-router.get("/getAllCategories", CategoryController.getAllCategories);
-
+// Public (cho dropdown, search)
 router.get("/", CategoryController.list);
+router.get("/popular", CategoryController.popular);
+router.get("/:categoryId", CategoryController.getOne);
 
-// // Lấy category theo ID
-// router.get("/:categoryId", CategoryController.getCategoryById);
+// Admin/Librarian CRUD
+router.post(
+  "/",
+  authenticateJWT,
+  authorizeRoles("admin", "librarian"),
+  CategoryController.create
+);
 
-// // Tìm kiếm categories
-// router.get("/search/:searchTerm", CategoryController.searchCategories);
+router.put(
+  "/:categoryId",
+  authenticateJWT,
+  authorizeRoles("admin", "librarian"),
+  CategoryController.update
+);
 
-// // Lấy popular categories
-// router.get("/popular/:limit?", CategoryController.getPopularCategories);
-
-// Tạo category mới
-router.post("/", CategoryController.create);
-
-// Cập nhật category
-router.put("/:categoryId", CategoryController.update);
-
-// Xóa category
-router.delete("/:categoryId", CategoryController.remove);
+router.delete(
+  "/:categoryId",
+  authenticateJWT,
+  authorizeRoles("admin", "librarian"),
+  CategoryController.remove
+);
 
 export default router;

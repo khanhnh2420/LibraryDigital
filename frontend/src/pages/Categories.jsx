@@ -48,9 +48,6 @@ function UpsertCategoryModal({ open, onClose, init }) {
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        <Form.Item name="categoryId" label="Category ID">
-          <Input placeholder="CAT001" disabled={isEdit} />
-        </Form.Item>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
           <Input placeholder="Tên danh mục" />
         </Form.Item>

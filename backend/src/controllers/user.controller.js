@@ -181,8 +181,6 @@ export async function updateUserAdmin(req, res) {
     const allowed = new Set([
       "name", "email", "username", "phone",
       "role", "status", "department", "year", "borrowLimit", "isActive",
-      //"gender", "address", "birthday"
-      "gender", "address", "birthday",
     ]);
     const filtered = {};
     for (const k of Object.keys(updates)) {
