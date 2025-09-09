@@ -14,12 +14,12 @@ connectDB().then(() => {
   });
   
   // Chạy mỗi 10 phút, hủy các batch "ChoNhan" đã hết hạn và trả tồn
-  setInterval(async () => {
-    try {
-      const { processed } = await LoanDAO.expirePendingBatches(200);
-      if (processed) console.log(`⏳ Auto-expired ${processed} pending batches`);
-    } catch (e) {
-      console.error("Auto-expire error:", e);
-    }
-  }, 10 * 60 * 1000);
+  // setInterval(async () => {
+  //   try {
+  //     const { processed } = await LoanDAO.expirePendingBatches(200);
+  //     if (processed) console.log(`⏳ Auto-expired ${processed} pending batches`);
+  //   } catch (e) {
+  //     console.error("Auto-expire error:", e);
+  //   }
+  // }, 10 * 60 * 1000);
 });

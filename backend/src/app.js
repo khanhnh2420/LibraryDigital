@@ -99,8 +99,8 @@ const corsOptions = {
 
 // CORS phải đứng TRƯỚC mọi middleware/routes khác
 app.use(cors(corsOptions));
-// Bật preflight toàn cục
-app.options("*", cors(corsOptions));
+// ⚠️ Express v5: dùng RegExp thay vì "*" để tránh lỗi path-to-regexp
+app.options(/.*/, cors(corsOptions));
 
 // Cho preflight đi qua trước rate-limit/auth...
 app.use((req, res, next) => {
@@ -194,7 +194,6 @@ app.use((req, res) => {
 // ===== Error =====
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
-  // Có thể phân biệt lỗi CORS để trả 403 thay vì 500
   if (String(err?.message || "").toLowerCase().includes("cors")) {
     return res.status(403).json({ error: "CORS", message: err.message });
   }
