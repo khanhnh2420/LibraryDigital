@@ -102,12 +102,12 @@ export default function BookDetail() {
             <Divider style={{ margin: "16px 0" }} />
             <Space direction="vertical" size={4}>
               <Tooltip title="Book ID">
-                <Typography.Text type="secondary" copyable>
+                <Typography.Text type="secondary" copyable={{ text: fmt(book.bookId) }}>
                   <BarcodeOutlined /> {fmt(book.bookId)}
                 </Typography.Text>
               </Tooltip>
               <Tooltip title="ISBN">
-                <Typography.Text type="secondary" copyable>
+                <Typography.Text type="secondary" copyable={{ text: fmt(book.isbn) }}>
                   <BarcodeOutlined /> {fmt(book.isbn)}
                 </Typography.Text>
               </Tooltip>
