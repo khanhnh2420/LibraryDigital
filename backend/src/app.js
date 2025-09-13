@@ -20,7 +20,7 @@ import profileRoutes from "./routes/profile.routes.js";
 
 // Routes Admin
 import dashboardRoutes from "./routes/dashboard.routes.js";
-// import loansRoutes from "./routes/loans.routes.js";
+import loansRoutes from "./routes/loans.routes.js";
 // import batchesRoutes from "./routes/batches.routes.js";
 import authorRoutes from "./routes/author.routes.js";
 import publisherRoutes from "./routes/publisher.routes.js";
@@ -134,7 +134,7 @@ app.use(
   dashboardRoutes
 );
 
-// app.use("/api/loans", loansRoutes);
+app.use("/api/loans", loansRoutes);
 
 // app.use(
 //   "/api/loanBatches",

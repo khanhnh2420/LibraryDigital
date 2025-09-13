@@ -11,16 +11,16 @@ export const CommentDAO = {
    * @param {string} params.bookId - Mã sách
    * @param {string} params.userId - Người tạo
    * @param {string} params.content - Nội dung comment
+   *  @param {int} params.rating - Đánh giá
    * @returns {Promise<Object>} Document vừa tạo (kèm _id)
    */
-  async createRoot({ bookId, userId, content }) {
+  async createRoot({ bookId, userId, content, rating }) {
     const db = await getDB();
     const now = new Date();
 
     const doc = {
-      bookId, userId, content,
+      bookId, userId, content, rating,
       parentId: null,
-      rating: null,
       likesCount: 0,
       repliesCount: 0,
       reportsCount: 0,

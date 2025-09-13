@@ -15,6 +15,6 @@ router.post("/staff/login", AuthController.staffLogin);
 router.post("/login", loginSpeedLimiter, loginLimiter, AuthController.login);
 router.post("/register", AuthController.registerUser);
 router.post("/logout", AuthController.logout);
-router.post("/refresh", refreshLimiter, AuthController.refreshAccessToken);
+router.post("/refresh-token", refreshLimiter, AuthController.refreshAccessToken);
 
 export default router;

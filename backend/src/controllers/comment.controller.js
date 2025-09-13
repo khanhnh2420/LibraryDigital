@@ -105,10 +105,10 @@ export const CommentController = {
   // Tạo comment gốc — trả về có user, ẩn userId
   async createRoot(req, res) {
     try {
-      const { bookId, userId, content } = req.body;
+      const { bookId, userId, content, rating } = req.body;
       if (!bookId || !userId || !content) throw new Error("Missing fields");
 
-      const created = await CommentDAO.createRoot({ bookId, userId, content });
+      const created = await CommentDAO.createRoot({ bookId, userId, content, rating });
       const usersMap = await UsersDAO.getMapByUserIds([userId]);
       const data = attachUser(created, usersMap);
 
@@ -120,9 +120,11 @@ export const CommentController = {
 
   // Trả lời 1 comment — trả về có user, ẩn userId
   async createReply(req, res) {
+    console.log(req)
     try {
       const { parentId } = req.params;
       const { userId, content } = req.body;
+      
       if (!userId || !content) throw new Error("Missing fields");
 
       const created = await CommentDAO.createReply({ parentId, userId, content });

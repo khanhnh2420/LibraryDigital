@@ -102,6 +102,101 @@ function parseYearParams(qs) {
   return Object.keys(range).length ? { range } : {};
 }
 
+// ===== Comment stats (ratingAvg, ratingCount, likesCount) từ collection "comments" =====
+function makeCommentStatsStages() {
+  return [
+    {
+      $lookup: {
+        from: "comments",
+        let: { bookId: "$bookId" },
+        pipeline: [
+          // match theo bookId; nếu bạn có cờ xóa mềm thì thêm { $ne: [ "$deleted", true ] }
+          { $match: { $expr: { $eq: ["$bookId", "$$bookId"] } } },
+
+          // Lấy những gì cần để tính
+          { $project: { rating: 1, likes: 1 } },
+
+          // Chuẩn hóa likesN: nếu likes là mảng -> size; nếu là số -> chính nó; null -> 0
+          {
+            $addFields: {
+              likesN: {
+                $cond: [
+                  { $isArray: "$likes" },
+                  { $size: "$likes" },
+                  { $ifNull: ["$likes", 0] }
+                ]
+              }
+            }
+          },
+
+          // Gom thành tổng/đếm/like
+          {
+            $group: {
+              _id: null,
+              ratingSum: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ["$rating", null] },
+                        { $gte: ["$rating", 1] }
+                      ]
+                    },
+                    "$rating",
+                    0
+                  ]
+                }
+              },
+              ratingCount: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ["$rating", null] },
+                        { $gte: ["$rating", 1] }
+                      ]
+                    },
+                    1,
+                    0
+                  ]
+                }
+              },
+              likesCount: { $sum: "$likesN" }
+            }
+          },
+
+          // Tính trung bình; nếu không có lượt nào thì 0
+          {
+            $project: {
+              _id: 0,
+              ratingCount: 1,
+              likesCount: 1,
+              ratingAvg: {
+                $cond: [
+                  { $gt: ["$ratingCount", 0] },
+                  { $divide: ["$ratingSum", "$ratingCount"] },
+                  0
+                ]
+              }
+            }
+          }
+        ],
+        as: "stats"
+      }
+    },
+    {
+      // Gỡ giá trị từ mảng stats[0] -> field phẳng
+      $addFields: {
+        ratingAvg: { $ifNull: [{ $arrayElemAt: ["$stats.ratingAvg", 0] }, 0] },
+        ratingCount: { $ifNull: [{ $arrayElemAt: ["$stats.ratingCount", 0] }, 0] },
+        likesCount: { $ifNull: [{ $arrayElemAt: ["$stats.likesCount", 0] }, 0] },
+        // alias tùy UI đang dùng:
+        reviewsCount: { $ifNull: [{ $arrayElemAt: ["$stats.ratingCount", 0] }, 0] }
+      }
+    },
+    { $project: { stats: 0 } }
+  ];
+}
 
 export const BookDAO = {
   // ===== Paged list (for GET /api/books) =====
@@ -221,7 +316,8 @@ export const BookDAO = {
         { $group: { _id: "$bookId", doc: { $first: "$$ROOT" } } },
         { $replaceRoot: { newRoot: "$doc" } },
         { $limit: limit },
-        ...bookAggregation
+        ...bookAggregation,
+        ...makeCommentStatsStages(),
       ])
       .toArray();
   },
