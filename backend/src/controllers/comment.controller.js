@@ -120,7 +120,6 @@ export const CommentController = {
 
   // Trả lời 1 comment — trả về có user, ẩn userId
   async createReply(req, res) {
-    console.log(req)
     try {
       const { parentId } = req.params;
       const { userId, content } = req.body;
