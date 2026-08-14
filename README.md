@@ -1,4 +1,4 @@
-# LibraryDigital
+# Library Digital Management
 
 LibraryDigital is a **library management web application** that provides a RESTful backend for user authentication and book management, together with a web frontend for interacting with the system.
 
