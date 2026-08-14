@@ -1,6 +1,6 @@
 # Library Digital Management
 
-LibraryDigital is a **library management web application** that provides a RESTful backend for user authentication and book management, together with a web frontend for interacting with the system.
+Library Digital Management is a **library management web application** that provides a RESTful backend for user authentication and book management, together with a web frontend for interacting with the system.
 
 The project is built around **Node.js, Express.js, MongoDB, React, Redux, and JWT authentication**. It demonstrates a typical client-server architecture with separated API routes, controllers, data models, authentication utilities, and frontend state management.
 
